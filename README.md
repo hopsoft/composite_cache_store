@@ -5,15 +5,15 @@
 ## Why a composite cache?
 
 Most web applications implement some form of caching mechanics to improve performance.
-Sufficiently large applications often employ a shared persistence service to back the cache.
-_(Redis, Memcache, etc.)_ Such services make a shared cache used by multiple machines and processes viable.
+Sufficiently large applications often employ a persistence service to back the cache.
+_(Redis, Memcache, etc.)_ These services make it possible to use a shared cache between multiple machines/processes.
 
-While these services are robust and performant, they can also be a source of latency and are potential bottlenecks to maximum performance.
+While these services are robust and performant, they can also be a source of latency and are potential bottlenecks.
 __A composite (or layered) cache can mitigate these risks.__
 
-Consider a composite cache that wraps a Redis-backed store with an in-memory store.
-When both caches are warm, a read hit on the outer in-memory store will return instantly, avoiding the overhead
-of inter-process communication (IPC) and/or network traffic with its attendant data marshaling and socket/wire noise.
+Consider a composite cache that wraps a remote Redis-backed store with an local in-memory store.
+When both caches are warm, a read hit on the local in-memory store will return instantly, avoiding the overhead
+of inter-process communication (IPC) and/or network traffic _(with its attendant data marshaling and socket/wire noise)._
 
 ## Dependencies
 
@@ -58,7 +58,7 @@ A composite cache is ideal for mitigating hot spot latency in frequently invoked
 ```ruby
 # NOTE: the expires_in option is only applied to the remote inner-cache
 #       the local inner-cache uses the globally configured expiration policy
-Rails.cache.fetch("example/slow/operation", expires_in: 12.hours) do
+Rails.composite_cache.fetch("example/slow/operation", expires_in: 12.hours) do
   # a slow operation
 end
 ```
