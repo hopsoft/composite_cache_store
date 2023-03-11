@@ -1,6 +1,22 @@
+<!-- Tocer[start]: Auto-generated, don't remove. -->
+
+## Table of Contents
+
+- [CompositeCacheStore](#compositecachestore)
+    - [A composite cache store comprised of 2 ActiveSupport::Cache::Store instances](#a-composite-cache-store-comprised-of-2-activesupportcachestore-instances)
+  - [Why a composite cache?](#why-a-composite-cache)
+  - [Dependencies](#dependencies)
+  - [Installation](#installation)
+  - [Setup](#setup)
+    - [Ruby on Rails](#ruby-on-rails)
+  - [Usage](#usage)
+  - [License](#license)
+
+<!-- Tocer[finish]: Auto-generated, don't remove. -->
+
 # CompositeCacheStore
 
-#### A composite cache store comprised of 2 ActiveSupport::Cache::Store instances
+### A composite cache store comprised of 2 ActiveSupport::Cache::Store instances
 
 ## Why a composite cache?
 
@@ -22,7 +38,7 @@ of inter-process communication (IPC) and/or network traffic _(with its attendant
 ## Installation
 
 ```sh
-bundle add "composite_cache_store --version VERSION"
+bundle add "composite_cache_store"
 ```
 
 ## Setup
@@ -57,7 +73,7 @@ A composite cache is ideal for mitigating hot spot latency in frequently invoked
 
 ```ruby
 # NOTE: the expires_in option is only applied to the remote inner-cache
-#       the local inner-cache uses the globally configured expiration policy
+#       the local outer-cache uses its globally configured expiration policy
 Rails.composite_cache.fetch("example/slow/operation", expires_in: 12.hours) do
   # a slow operation
 end
