@@ -1,20 +1,20 @@
 # frozen_string_literal: true
 
-require_relative "lib/turbo_boost/cache/version"
+require_relative "lib/composite_cache_store/version"
 
 Gem::Specification.new do |s|
-  s.name = "turbo_boost-cache"
-  s.version = TurboBoost::Cache::VERSION
+  s.name = "composite_cache_store"
+  s.version = CompositeCacheStore::VERSION
   s.authors = ["Nate Hopkins (hopsoft)"]
   s.email = ["natehop@gmail.com"]
 
-  s.summary = "A layered cache that implements the same interface as ActiveSupport::Cache::Store"
+  s.summary = "A coposite cache store comprised of 2 ActiveSupport::Cache::Store instances"
   s.description = <<~DESC
-    A layered cache that wraps an inner cache with ActiveSupport::Cache::MemoryStore
-    which improves read performance and limits inner cache backpressure.
+    Enhanced application performance with faster reads, data redundancy,
+    and reduced backpressure on the inner cache store.
   DESC
 
-  s.homepage = "https://github.com/hopsoft/turbo_boost-cache"
+  s.homepage = "https://github.com/hopsoft/composite_cache_store"
   s.license = "MIT"
   s.required_ruby_version = ">= 2.7.5"
 

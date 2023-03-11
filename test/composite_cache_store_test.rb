@@ -2,7 +2,7 @@
 
 require_relative "test_helper"
 
-class TurboBoost::Cache::StoreTest < ActiveSupport::TestCase
+class CompositeCacheStoreTest < ActiveSupport::TestCase
   setup do
     @logger = Logger.new("/dev/null") # used for Standard/Rubocop shenanigans
 
@@ -10,27 +10,30 @@ class TurboBoost::Cache::StoreTest < ActiveSupport::TestCase
     #       Redis via ActiveSupport::Cache::RedisCacheStore
     #
     #       In a Rails app you might use Rails.cache as the inner cache store
-    @store = TurboBoost::Cache::Store.new(
-      expires_in: 1.second,
-      size: 8.megabytes,
-      inner: ActiveSupport::Cache::MemoryStore.new(
-        expires_in: 1.minute,
-        size: 64.megabytes
-      )
+    @store = CompositeCacheStore.new(
+      inner_cache_store: ActiveSupport::Cache::MemoryStore.new(expires_in: 1.minute, size: 64.megabytes),
+      outer_cache_store: ActiveSupport::Cache::MemoryStore.new(expires_in: 1.second, size: 8.megabytes)
     )
   end
 
   test "default instantation" do
-    store = TurboBoost::Cache::Store.new
+    store = CompositeCacheStore.new
+
+    expected = {expires_in: 5.minutes, size: 16.megabytes, compress: false, compress_threshold: 1.kilobyte}
     assert store.outer.is_a?(ActiveSupport::Cache::MemoryStore)
-    assert store.inner.is_a?(ActiveSupport::Cache::NullStore)
+    assert_equal expected, store.outer.options
+
+    expected = {expires_in: 1.day, size: 32.megabytes, compress: false, compress_threshold: 1.kilobyte}
+    assert store.inner.is_a?(ActiveSupport::Cache::MemoryStore)
+    assert_equal expected, store.inner.options
   end
 
   test "custom instantation" do
-    assert_equal 1.minute, @store.inner.options[:expires_in]
-    assert_equal 64.megabytes, @store.inner.options[:size]
-    assert_equal 1.second, @store.outer.options[:expires_in]
-    assert_equal 8.megabytes, @store.outer.options[:size]
+    expected = {expires_in: 1.second, size: 8.megabytes, compress: false, compress_threshold: 1.kilobyte}
+    assert_equal expected, @store.outer.options
+
+    expected = {expires_in: 1.minute, size: 64.megabytes, compress: false, compress_threshold: 1.kilobyte}
+    assert_equal expected, @store.inner.options
   end
 
   test "write and read" do
