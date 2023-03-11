@@ -7,6 +7,7 @@
 ## Table of Contents
 
   - [Why a composite cache?](#why-a-composite-cache)
+  - [Sponsors](#sponsors)
   - [Dependencies](#dependencies)
   - [Installation](#installation)
   - [Setup](#setup)
@@ -29,6 +30,17 @@ It can also alleviate traffic and backpressure on the persistence service.
 Consider a composite cache that wraps a remote Redis-backed store with an local in-memory store.
 When both caches are warm, a read hit on the local in-memory store will return instantly, avoiding the overhead
 of inter-process communication (IPC) and/or network traffic _(with its attendant data marshaling and socket/wire noise)._
+
+## Sponsors
+
+<p align="center">
+  <em>Proudly sponsored by</em>
+</p>
+<p align="center">
+  <a href="https://www.clickfunnels.com?utm_source=hopsoft&utm_medium=open-source&utm_campaign=composite_cache_store">
+    <img src="https://images.clickfunnel.com/uploads/digital_asset/file/176632/clickfunnels-dark-logo.svg" width="575" />
+  </a>
+</p>
 
 ## Dependencies
 
