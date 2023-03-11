@@ -20,8 +20,8 @@ class CompositeCacheStore
   alias_method :inner, :inner_cache_store
 
   # Returns a new CompositeCacheStore instance
-  # - inner_cache_store: An ActiveSupport::Cache::Store instance to use for the inner cache store
-  # - outer_cache_store: An ActiveSupport::Cache::Store instance to use for the outer cache store
+  # - inner_cache_store: An ActiveSupport::Cache::Store instance to use for the inner cache store (typically remote)
+  # - outer_cache_store: An ActiveSupport::Cache::Store instance to use for the outer cache store (typically local)
   def initialize(options = {})
     options ||= {}
 
@@ -109,13 +109,15 @@ class CompositeCacheStore
     inner.silence!
   end
 
-  def write(...)
-    outer.write(...)
-    inner.write(...)
+  def write(name, value, options = nil)
+    options ||= {}
+    outer.write(name, value, options.except(:expires_in)) # ? accept expires_in if less than outer.config[:expires_in] ?
+    inner.write(name, value, options)
   end
 
-  def write_multi(...)
-    outer.write_multi(...)
-    inner.write_multi(...)
+  def write_multi(hash, options = nil)
+    options ||= {}
+    outer.write_multi(hash, options.except(:expires_in)) # ? accept expires_in if less than outer.config[:expires_in] ?
+    inner.write_multi(hash, options)
   end
 end

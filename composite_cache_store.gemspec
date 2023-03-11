@@ -8,7 +8,7 @@ Gem::Specification.new do |s|
   s.authors = ["Nate Hopkins (hopsoft)"]
   s.email = ["natehop@gmail.com"]
 
-  s.summary = "A coposite cache store comprised of 2 ActiveSupport::Cache::Store instances"
+  s.summary = "A composite cache store comprised of 2 ActiveSupport::Cache::Store instances"
   s.description = <<~DESC
     Enhanced application performance with faster reads, data redundancy,
     and reduced backpressure on the inner cache store.
