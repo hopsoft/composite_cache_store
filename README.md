@@ -68,7 +68,7 @@ end
 ```ruby
 # config/initializers/composite_cache_store.rb
 def Rails.composite_cache
-  @store ||= CompositeCacheStore.new(
+  @composite_cache ||= CompositeCacheStore.new(
     inner_cache_store: Rails.cache, # use whatever makes sense for your app as the remote inner-cache
     outer_cache_store: ActiveSupport::Cache::MemoryStore.new( # employs an LRU eviction policy
       expires_in: 15.minutes, # constrain entry lifetime so the local outer-cache doesn't drift out of sync
