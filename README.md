@@ -24,8 +24,8 @@ Sufficiently large applications often employ a persistence service to back the c
 _(Redis, Memcache, etc.)_ These services make it possible to use a shared cache between multiple machines/processes.
 
 While these services are robust and performant, they can also be a source of latency and are potential bottlenecks.
-__A composite (or layered) cache can mitigate these risks.__
-It can also alleviate traffic and backpressure on the persistence service.
+__A composite (or layered) cache can mitigate these risks__
+by reducing traffic and backpressure on the persistence service.
 
 Consider a composite cache that wraps a remote Redis-backed store with an local in-memory store.
 When both caches are warm, a read hit on the local in-memory store will return instantly, avoiding the overhead
