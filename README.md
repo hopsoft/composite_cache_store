@@ -1,9 +1,11 @@
+# CompositeCacheStore
+
+### A composite cache store comprised of 2 ActiveSupport::Cache::Store instances
+
 <!-- Tocer[start]: Auto-generated, don't remove. -->
 
 ## Table of Contents
 
-- [CompositeCacheStore](#compositecachestore)
-    - [A composite cache store comprised of 2 ActiveSupport::Cache::Store instances](#a-composite-cache-store-comprised-of-2-activesupportcachestore-instances)
   - [Why a composite cache?](#why-a-composite-cache)
   - [Dependencies](#dependencies)
   - [Installation](#installation)
@@ -14,10 +16,6 @@
 
 <!-- Tocer[finish]: Auto-generated, don't remove. -->
 
-# CompositeCacheStore
-
-### A composite cache store comprised of 2 ActiveSupport::Cache::Store instances
-
 ## Why a composite cache?
 
 Most web applications implement some form of caching mechanics to improve performance.
@@ -26,6 +24,7 @@ _(Redis, Memcache, etc.)_ These services make it possible to use a shared cache 
 
 While these services are robust and performant, they can also be a source of latency and are potential bottlenecks.
 __A composite (or layered) cache can mitigate these risks.__
+It can also alleviate traffic and backpressure on the persistence service.
 
 Consider a composite cache that wraps a remote Redis-backed store with an local in-memory store.
 When both caches are warm, a read hit on the local in-memory store will return instantly, avoiding the overhead
@@ -72,10 +71,13 @@ end
 A composite cache is ideal for mitigating hot spot latency in frequently invoked areas of the codebase.
 
 ```ruby
-# NOTE: the expires_in option is only applied to the remote inner-cache
-#       the local outer-cache uses its globally configured expiration policy
-Rails.composite_cache.fetch("example/slow/operation", expires_in: 12.hours) do
-  # a slow operation
+# method that's invoked frequently by multiple processes
+def hotspot
+  # NOTE: the expires_in option is only applied to the remote inner-cache
+  #       the local outer-cache uses its globally configured expiration policy
+  Rails.composite_cache.fetch("example/slow/operation", expires_in: 12.hours) do
+    # a slow operation
+  end
 end
 ```
 
