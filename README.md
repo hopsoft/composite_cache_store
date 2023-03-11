@@ -27,7 +27,7 @@ While these services are robust and performant, they can also be a source of lat
 __A composite (or layered) cache can mitigate these risks__
 by reducing traffic and backpressure on the persistence service.
 
-Consider a composite cache that wraps a remote Redis-backed store with an local in-memory store.
+Consider a composite cache that wraps a remote Redis-backed store with a local in-memory store.
 When both caches are warm, a read hit on the local in-memory store will return instantly, avoiding the overhead
 of inter-process communication (IPC) and/or network traffic _(with its attendant data marshaling and socket/wire noise)._
 
