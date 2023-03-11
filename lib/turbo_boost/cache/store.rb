@@ -3,7 +3,7 @@
 require "active_support/cache"
 
 module TurboBoost::Cache
-  class Store < ActiveSupport::Cache::Store
+  class Store
     attr_reader :outer, :inner
 
     # Options (same as ActiveSupport::Cache::MemoryStore)
