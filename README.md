@@ -28,8 +28,9 @@ __A composite (or layered) cache can mitigate these risks__
 by reducing traffic and backpressure on the persistence service.
 
 Consider a composite cache that wraps a remote Redis-backed "inner cache" with a local in-memory "outer cache".
-When both caches are warm, a read hit on the local in-memory store will return instantly, avoiding the overhead
-of inter-process communication (IPC) and/or network traffic _(with its attendant data marshaling and socket/wire noise)._
+When both caches are warm, a read hit on the local in-memory cache returns instantly and avoids the overhead of
+inter-process communication (IPC) and/or network traffic _(with its attendant data marshaling and socket/wire noise)_
+associated with accessing the remote Redis-backed cache.
 
 To summarize: __Reads prioritize the outer/wrapping cache and fall back to the inner/wrapped cache.__
 
