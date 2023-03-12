@@ -31,6 +31,8 @@ Consider a composite cache that wraps a remote Redis-backed store with a local i
 When both caches are warm, a read hit on the local in-memory store will return instantly, avoiding the overhead
 of inter-process communication (IPC) and/or network traffic _(with its attendant data marshaling and socket/wire noise)._
 
+To summarize: __Reads prioritize the outer/wrapping cache and fall back to the inner/wrapped cache.__
+
 ## Sponsors
 
 <p align="center">
