@@ -1,6 +1,6 @@
 # CompositeCacheStore
 
-### A composite cache store comprised of 2 ActiveSupport::Cache::Store instances
+### A composite cache store comprised of layered ActiveSupport::Cache::Store instances
 
 <!-- Tocer[start]: Auto-generated, don't remove. -->
 
