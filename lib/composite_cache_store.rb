@@ -119,6 +119,8 @@ class CompositeCacheStore
     end
   end
 
+  # Only applies expiration options to the outermost cache
+  # Inner caches use their global expiration options
   def write_multi(hash, options = nil)
     options ||= {}
     layers.each do |store|

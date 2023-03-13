@@ -27,12 +27,12 @@ While these services are robust and performant, they can also be a source of lat
 __A composite (or layered) cache can mitigate these risks__
 by reducing traffic and backpressure on the persistence service.
 
-Consider a composite cache that wraps a remote Redis-backed "inner cache" with a local in-memory "outer cache".
+Consider a composite cache that wraps a remote Redis-backed "outer cache" with a local in-memory "inner cache".
 When both caches are warm, a read hit on the local in-memory cache returns instantly and avoids the overhead of
 inter-process communication (IPC) and/or network traffic _(with its attendant data marshaling and socket/wire noise)_
 associated with accessing the remote Redis-backed cache.
 
-To summarize: __Reads prioritize the outer/wrapping cache and fall back to the inner/wrapped cache.__
+To summarize: __Reads prioritize the inner cache and fall back to the outer cache.__
 
 ## Sponsors
 
@@ -72,11 +72,16 @@ end
 # config/initializers/composite_cache_store.rb
 def Rails.composite_cache
   @composite_cache ||= CompositeCacheStore.new(
-    inner_cache_store: Rails.cache, # use whatever makes sense for your app as the remote inner-cache
-    outer_cache_store: ActiveSupport::Cache::MemoryStore.new( # employs an LRU eviction policy
-      expires_in: 15.minutes, # constrain entry lifetime so the local outer-cache doesn't drift out of sync
-      size: 32.megabytes # constrain max memory used by the local outer-cache
-    )
+    # Layer 1 cache (inner) - employs an LRU eviction policy
+    ActiveSupport::Cache::MemoryStore.new(
+      expires_in: 15.minutes, # constrain entry lifetime so the local cache doesn't drift out of sync
+      size: 32.megabytes # constrain max memory used by the local cache
+    ),
+
+    # Layer 2 cache (outer)
+    Rails.cache, # use whatever makes sense for your app as the remote inner-cache
+
+    # additional layers are optional
   )
 end
 ```
@@ -88,8 +93,8 @@ A composite cache is ideal for mitigating hot spot latency in frequently invoked
 ```ruby
 # method that's invoked frequently by multiple processes
 def hotspot
-  # NOTE: the expires_in option is only applied to the remote inner-cache
-  #       the local outer-cache uses its globally configured expiration policy
+  # NOTE: expiration options are only applied to the outermost cache
+  #       inner caches use their globally configured expiration policy
   Rails.composite_cache.fetch("example/slow/operation", expires_in: 12.hours) do
     # a slow operation
   end
