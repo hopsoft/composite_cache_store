@@ -4,120 +4,136 @@ require "active_support/cache"
 require_relative "composite_cache_store/version"
 
 class CompositeCacheStore
-  DEFAULT_OUTER_OPTIONS = {
+  DEFAULT_LAYER_1_OPTIONS = {
     expires_in: 5.minutes,
     size: 16.megabytes
   }
 
-  DEFAULT_INNER_OPTIONS = {
+  DEFAULT_LAYER_2_OPTIONS = {
     expires_in: 1.day,
     size: 32.megabytes
   }
 
-  attr_reader :outer_cache_store, :inner_cache_store
-
-  alias_method :outer, :outer_cache_store
-  alias_method :inner, :inner_cache_store
+  attr_reader :layers
 
   # Returns a new CompositeCacheStore instance
-  # - inner_cache_store: An ActiveSupport::Cache::Store instance to use for the inner cache store (typically remote)
-  # - outer_cache_store: An ActiveSupport::Cache::Store instance to use for the outer cache store (typically local)
-  def initialize(options = {})
-    options ||= {}
+  def initialize(*layers)
+    if layers.blank?
+      layers << ActiveSupport::Cache::MemoryStore.new(DEFAULT_LAYER_1_OPTIONS)
+      layers << ActiveSupport::Cache::MemoryStore.new(DEFAULT_LAYER_2_OPTIONS)
+    end
 
-    @inner_cache_store = options[:inner_cache_store]
-    @inner_cache_store = ActiveSupport::Cache::MemoryStore.new(DEFAULT_INNER_OPTIONS) unless inner.is_a?(ActiveSupport::Cache::Store)
+    message = "All layers must be instances of ActiveSupport::Cache::Store"
+    layers.each do |layer|
+      raise ArgumentError.new(message) unless layer.is_a?(ActiveSupport::Cache::Store)
+    end
 
-    @outer_cache_store = options[:outer_cache_store]
-    @outer_cache_store = ActiveSupport::Cache::MemoryStore.new(DEFAULT_OUTER_OPTIONS) unless outer.is_a?(ActiveSupport::Cache::Store)
+    layers.freeze
+    @layers = layers
   end
 
   def cleanup(...)
-    outer.cleanup(...)
-    inner.cleanup(...)
+    layers.each { |store| store.cleanup(...) }
   end
 
   def clear(...)
-    outer.clear(...)
-    inner.clear(...)
+    layers.each { |store| store.clear(...) }
   end
 
   def decrement(...)
-    outer.decrement(...)
-    inner.decrement(...)
+    layers.each { |store| store.decrement(...) }
   end
 
   def delete(...)
-    outer.delete(...)
-    inner.delete(...)
+    layers.each { |store| store.delete(...) }
   end
 
   def delete_matched(...)
-    outer.delete_matched(...)
-    inner.delete_matched(...)
+    layers.each { |store| store.delete_matched(...) }
   end
 
   def delete_multi(...)
-    outer.delete_multi(...)
-    inner.delete_multi(...)
+    layers.each { |store| store.delete_multi(...) }
   end
 
   def exist?(...)
-    outer.exist?(...) || inner.exist?(...)
+    layers.each do |store|
+      return true if store.exist?(...)
+    end
+    false
   end
 
   def fetch(*args, &block)
-    outer.fetch(*args) do
-      inner.fetch(*args, &block)
+    f = ->(store) do
+      return store.fetch(*args, &block) if store == layers.last
+      store.fetch(*args) { f.call(layers[layers.index(store) + 1]) }
     end
+    f.call(layers.first)
   end
 
   def fetch_multi(*args, &block)
-    outer.fetch_multi(*args) do
-      inner.fetch_multi(*args, &block)
+    fm = ->(store) do
+      return store.fetch_multi(*args, &block) if store == layers.last
+      store.fetch_multi(*args) { fm.call(layers[layers.index(store) + 1]) }
     end
+    fm.call(layers.first)
   end
 
-  # write
   def increment(...)
-    outer.increment(...)
-    inner.increment(...)
+    layers.each { |store| store.increment(...) }
   end
 
   def mute
-    outer.mute do
-      inner.mute do
-        yield
+    m = ->(store) do
+      return store.mute { yield } if store == layers.last
+      store.mute { m.call(layers[layers.index(store) + 1]) }
+    end
+    m.call(layers.first)
+  end
+
+  def read(*args)
+    r = ->(store) do
+      return store.read(*args) if store == layers.last
+      store.fetch(*args) { r.call(layers[layers.index(store) + 1]) }
+    end
+    r.call(layers.first)
+  end
+
+  def read_multi(...)
+    layers.each do |store|
+      result = store.read_multi(...)
+      return result if result.present?
+    end
+    nil
+  end
+
+  def silence!
+    layers.each { |store| store.silence! }
+  end
+
+  # Only applies expiration options to the outermost cache
+  # Inner caches use their global expiration options
+  def write(name, value, options = nil)
+    options ||= {}
+    layers.each do |store|
+      if store == layers.last
+        store.write(name, value, options)
+      else
+        store.write(name, value, options.except(:expires_in, :expires_at))
       end
     end
   end
 
-  def read(*args)
-    outer.fetch(*args) do
-      inner.read(*args)
-    end
-  end
-
-  def read_multi(...)
-    result = outer.read_multi(...)
-    result = inner.read_multi(...) if result.blank?
-    result
-  end
-
-  def silence!
-    outer.silence!
-    inner.silence!
-  end
-
-  def write(name, value, options = nil)
-    options ||= {}
-    outer.write(name, value, options.except(:expires_in)) # ? accept expires_in if less than outer.config[:expires_in] ?
-    inner.write(name, value, options)
-  end
-
+  # Only applies expiration options to the outermost cache
+  # Inner caches use their global expiration options
   def write_multi(hash, options = nil)
     options ||= {}
-    outer.write_multi(hash, options.except(:expires_in)) # ? accept expires_in if less than outer.config[:expires_in] ?
-    inner.write_multi(hash, options)
+    layers.each do |store|
+      if store == layers.last
+        store.write_multi(hash, options)
+      else
+        store.write_multi(hash, options.except(:expires_in, :expires_at))
+      end
+    end
   end
 end
