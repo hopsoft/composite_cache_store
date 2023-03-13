@@ -32,6 +32,14 @@ class CompositeCacheStoreTest < ActiveSupport::TestCase
     assert_equal expected, @store.layers.last.options
   end
 
+  test "invalid instantation" do
+    error = assert_raises(ArgumentError) do
+      CompositeCacheStore.new([], 1, true)
+    end
+
+    assert_equal "All layers must be instances of ActiveSupport::Cache::Store", error.message
+  end
+
   test "write and read" do
     @store.write(:test, "value")
     assert_equal "value", @store.read(:test)

@@ -23,6 +23,11 @@ class CompositeCacheStore
       layers << ActiveSupport::Cache::MemoryStore.new(DEFAULT_LAYER_2_OPTIONS)
     end
 
+    message = "All layers must be instances of ActiveSupport::Cache::Store"
+    layers.each do |layer|
+      raise ArgumentError.new(message) unless layer.is_a?(ActiveSupport::Cache::Store)
+    end
+
     layers.freeze
     @layers = layers
   end
