@@ -15,7 +15,6 @@ class CompositeCacheStore
   }
 
   attr_reader :layers
-  delegate_missing_to :"layers.last"
 
   # Returns a new CompositeCacheStore instance
   def initialize(*layers)
