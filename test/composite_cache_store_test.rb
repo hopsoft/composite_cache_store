@@ -47,13 +47,31 @@ class CompositeCacheStoreTest < ActiveSupport::TestCase
     assert_equal "value", @store.layers.last.read(:test)
   end
 
-  test "read rewrites to outer cache on outer cache miss" do
+  test "read rewrites to layer-1 cache on layer-1 cache miss" do
     @store.write(:test, "value")
     sleep 1
-    assert_nil @store.layers.first.read(:test) # layer 1 miss
-    assert_equal "value", @store.layers.last.read(:test) # layer 2 hit
-    assert_equal "value", @store.read(:test) # rewrites to layer 1
-    assert_equal "value", @store.layers.first.read(:test) # layer 1 hit
+    assert_nil @store.layers.first.read(:test) # layer-1 miss
+    assert_equal "value", @store.layers.last.read(:test) # layer-2 hit
+    assert_equal "value", @store.read(:test) # rewrites to layer-1
+    assert_equal "value", @store.layers.first.read(:test) # layer-1 hit
+  end
+
+  test "write_multi and read_multi" do
+    hash = {a: 1, b: 2, c: 3}
+    @store.write_multi(hash)
+    assert_equal hash, @store.read_multi(:a, :b, :c)
+    assert_equal hash, @store.layers.first.read_multi(:a, :b, :c)
+    assert_equal hash, @store.layers.last.read_multi(:a, :b, :c)
+  end
+
+  test "read_multi rewrites to layer-1 cache on layer-1 cache miss" do
+    hash = {a: 1, b: 2, c: 3}
+    @store.write_multi(hash)
+    sleep 1
+    assert @store.layers.first.read_multi(:a, :b, :c).blank?
+    assert_equal hash, @store.layers.last.read_multi(:a, :b, :c)
+    assert_equal hash, @store.read_multi(:a, :b, :c)
+    assert_equal hash, @store.layers.first.read_multi(:a, :b, :c)
   end
 
   test "fetch" do
@@ -66,16 +84,16 @@ class CompositeCacheStoreTest < ActiveSupport::TestCase
     assert_equal "value", @store.layers.last.read(:test)
   end
 
-  test "fetch rewrites to outer cache on outer cache miss" do
+  test "fetch rewrites to layer-1 cache on layer-1 cache miss" do
     @store.write(:test, "value")
     sleep 1
-    assert_nil @store.layers.first.read(:test) # layer 1 miss
-    assert_equal "value", @store.layers.last.read(:test) # layer 2 hit
-    @store.fetch(:test) do # rewrites layer 1
+    assert_nil @store.layers.first.read(:test) # layer-1 miss
+    assert_equal "value", @store.layers.last.read(:test) # layer-2 hit
+    @store.fetch(:test) do # rewrites layer-1
       @logger.debug "Prevent Standard/Rubocop from jacking up the fetch block ¯\\_(ツ)_/¯"
       "value"
     end
-    assert_equal "value", @store.layers.first.read(:test) # layer 1 hit
+    assert_equal "value", @store.layers.first.read(:test) # layer-1 hit
   end
 
   test "delete" do
@@ -84,6 +102,28 @@ class CompositeCacheStoreTest < ActiveSupport::TestCase
     assert_equal "value", @store.layers.first.read(:test)
     assert_equal "value", @store.layers.last.read(:test)
     @store.delete(:test)
+    assert_nil @store.read(:test)
+    assert_nil @store.layers.first.read(:test)
+    assert_nil @store.layers.last.read(:test)
+  end
+
+  test "applies expires_in when value is less than store's configured expires_in" do
+    @store.write(:test, "value", expires_in: 0.1.seconds)
+    assert_equal "value", @store.read(:test)
+    assert_equal "value", @store.layers.first.read(:test)
+    assert_equal "value", @store.layers.last.read(:test)
+    sleep 0.1
+    assert_nil @store.read(:test)
+    assert_nil @store.layers.first.read(:test)
+    assert_nil @store.layers.last.read(:test)
+  end
+
+  test "applies expires_at when computed expires_in is less than store's configured expires_in" do
+    @store.write(:test, "value", expires_at: 0.1.second.from_now)
+    assert_equal "value", @store.read(:test)
+    assert_equal "value", @store.layers.first.read(:test)
+    assert_equal "value", @store.layers.last.read(:test)
+    sleep 0.1
     assert_nil @store.read(:test)
     assert_nil @store.layers.first.read(:test)
     assert_nil @store.layers.last.read(:test)
