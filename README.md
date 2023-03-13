@@ -79,7 +79,7 @@ def Rails.composite_cache
     ),
 
     # Layer 2 cache (outer)
-    Rails.cache, # use whatever makes sense for your app as the remote inner-cache
+    Rails.cache, # use whatever makes sense for your app
 
     # additional layers are optional
   )
