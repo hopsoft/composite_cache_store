@@ -117,30 +117,26 @@ class CompositeCacheStore
   end
 
   def write(name, value, options = nil)
-    options ||= {}
     layers.each do |store|
-      if keep_expiration(store, options)
-        store.write(name, value, options)
-      else
-        store.write(name, value, options.except(:expires_in, :expires_at))
-      end
+      store.write name, value, permitted_options(store, options)
     end
   end
 
   def write_multi(hash, options = nil)
-    options ||= {}
     layers.each do |store|
-      if keep_expiration(store, options)
-        store.write_multi(hash, options)
-      else
-        store.write_multi(hash, options.except(:expires_in, :expires_at))
-      end
+      store.write_multi hash, permitted_options(store, options)
     end
   end
 
   private
 
-  def keep_expiration(store, options = {})
+  def permitted_options(store, options = {})
+    return options if options.blank?
+    return options if keep_expiration?(store, options)
+    options.except(:expires_in, :expires_at)
+  end
+
+  def keep_expiration?(store, options = {})
     return true if store == layers.last
     return true unless store.options[:expires_in]
 
