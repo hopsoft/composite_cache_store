@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "active_support/cache"
+require "active_support/all"
 require_relative "composite_cache_store/version"
 
 class CompositeCacheStore
@@ -100,40 +100,50 @@ class CompositeCacheStore
   end
 
   def read_multi(...)
+    missed_layers = []
     layers.each do |store|
-      result = store.read_multi(...)
-      return result if result.present?
+      hash = store.read_multi(...)
+      if hash.present?
+        missed_layers.each { |s| s.write_multi(hash) }
+        return hash
+      end
+      missed_layers << store
     end
-    nil
+    {}
   end
 
   def silence!
     layers.each { |store| store.silence! }
   end
 
-  # Only applies expiration options to the outermost cache
-  # Inner caches use their global expiration options
   def write(name, value, options = nil)
-    options ||= {}
     layers.each do |store|
-      if store == layers.last
-        store.write(name, value, options)
-      else
-        store.write(name, value, options.except(:expires_in, :expires_at))
-      end
+      store.write name, value, permitted_options(store, options)
     end
   end
 
-  # Only applies expiration options to the outermost cache
-  # Inner caches use their global expiration options
   def write_multi(hash, options = nil)
-    options ||= {}
     layers.each do |store|
-      if store == layers.last
-        store.write_multi(hash, options)
-      else
-        store.write_multi(hash, options.except(:expires_in, :expires_at))
-      end
+      store.write_multi hash, permitted_options(store, options)
     end
+  end
+
+  private
+
+  def permitted_options(store, options = {})
+    return options if options.blank?
+    return options if keep_expiration?(store, options)
+    options.except(:expires_in, :expires_at)
+  end
+
+  def keep_expiration?(store, options = {})
+    return true if store == layers.last
+    return true unless store.options[:expires_in]
+
+    expires_in = options[:expires_in]
+    expires_in ||= Time.current - options[:expires_at] if options[:expires_at]
+    return false unless expires_in
+
+    expires_in < store.options[:expires_in]
   end
 end
