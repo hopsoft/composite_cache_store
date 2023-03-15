@@ -3,7 +3,7 @@
 require "active_support/all"
 require_relative "composite_cache_store/version"
 
-class CompositeCacheStore
+class CompositeCacheStore < ActiveSupport::Cache::Store
   DEFAULT_LAYER_1_OPTIONS = {
     expires_in: 5.minutes,
     size: 16.megabytes
@@ -17,7 +17,9 @@ class CompositeCacheStore
   attr_reader :layers
 
   # Returns a new CompositeCacheStore instance
-  def initialize(*layers)
+  def initialize(options = nil)
+    layers = options.delete(:layers)
+
     if layers.blank?
       layers << ActiveSupport::Cache::MemoryStore.new(DEFAULT_LAYER_1_OPTIONS)
       layers << ActiveSupport::Cache::MemoryStore.new(DEFAULT_LAYER_2_OPTIONS)
@@ -30,6 +32,7 @@ class CompositeCacheStore
 
     layers.freeze
     @layers = layers
+    super(options)
   end
 
   def cleanup(...)
@@ -41,19 +44,11 @@ class CompositeCacheStore
   end
 
   def decrement(...)
-    layers.each { |store| store.decrement(...) }
-  end
-
-  def delete(...)
-    layers.each { |store| store.delete(...) }
+    layers.map { |store| store.decrement(...) }.max
   end
 
   def delete_matched(...)
     layers.each { |store| store.delete_matched(...) }
-  end
-
-  def delete_multi(...)
-    layers.each { |store| store.delete_multi(...) }
   end
 
   def exist?(...)
@@ -63,24 +58,8 @@ class CompositeCacheStore
     false
   end
 
-  def fetch(*args, &block)
-    f = ->(store) do
-      return store.fetch(*args, &block) if store == layers.last
-      store.fetch(*args) { f.call(layers[layers.index(store) + 1]) }
-    end
-    f.call(layers.first)
-  end
-
-  def fetch_multi(*args, &block)
-    fm = ->(store) do
-      return store.fetch_multi(*args, &block) if store == layers.last
-      store.fetch_multi(*args) { fm.call(layers[layers.index(store) + 1]) }
-    end
-    fm.call(layers.first)
-  end
-
   def increment(...)
-    layers.each { |store| store.increment(...) }
+    layers.map { |store| store.increment(...) }.min
   end
 
   def mute
@@ -91,44 +70,30 @@ class CompositeCacheStore
     m.call(layers.first)
   end
 
-  def read(*args)
-    r = ->(store) do
-      return store.read(*args) if store == layers.last
-      store.fetch(*args) { r.call(layers[layers.index(store) + 1]) }
-    end
-    r.call(layers.first)
-  end
-
-  def read_multi(...)
-    missed_layers = []
-    layers.each do |store|
-      hash = store.read_multi(...)
-      if hash.present?
-        missed_layers.each { |s| s.write_multi(hash) }
-        return hash
-      end
-      missed_layers << store
-    end
-    {}
-  end
-
   def silence!
     layers.each { |store| store.silence! }
   end
 
-  def write(name, value, options = nil)
-    layers.each do |store|
-      store.write name, value, permitted_options(store, options)
-    end
-  end
-
-  def write_multi(hash, options = nil)
-    layers.each do |store|
-      store.write_multi hash, permitted_options(store, options)
-    end
-  end
-
   private
+
+  def read_entry(key, **options)
+    layers.each do |store|
+      entry = store.send "read_entry", key, **options
+      return entry unless entry.nil?
+    end
+
+    nil
+  end
+
+  def write_entry(key, entry, **options)
+    layers.each do |store|
+      store.send "write_entry", key, entry, **permitted_options(store, options)
+    end
+  end
+
+  def delete_entry(key, **options)
+    layers.all? { |store| store.send "delete_entry", key, **options }
+  end
 
   def permitted_options(store, options = {})
     return options if options.blank?
