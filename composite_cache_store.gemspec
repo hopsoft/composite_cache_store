@@ -33,5 +33,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency "magic_frozen_string_literal"
   s.add_development_dependency "minitest-reporters"
   s.add_development_dependency "pry-byebug"
-  s.add_development_dependency "standardrb"
+  s.add_development_dependency "pry-doc"
+  s.add_development_dependency "rake"
+  s.add_development_dependency "standard"
 end

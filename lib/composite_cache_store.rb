@@ -4,146 +4,167 @@ require "active_support/all"
 require_relative "composite_cache_store/version"
 
 class CompositeCacheStore
-  DEFAULT_LAYER_1_OPTIONS = {
-    expires_in: 5.minutes,
-    size: 16.megabytes
-  }
-
-  DEFAULT_LAYER_2_OPTIONS = {
-    expires_in: 1.day,
-    size: 32.megabytes
-  }
-
-  attr_reader :layers
+  attr_reader :options, :layers
+  attr_accessor :logger
 
   # Returns a new CompositeCacheStore instance
-  def initialize(*layers)
+  def initialize(options = {})
+    options = options.dup || {}
+    layers = options.delete(:layers) || []
     if layers.blank?
-      layers << ActiveSupport::Cache::MemoryStore.new(DEFAULT_LAYER_1_OPTIONS)
-      layers << ActiveSupport::Cache::MemoryStore.new(DEFAULT_LAYER_2_OPTIONS)
+      layers << ActiveSupport::Cache::MemoryStore.new({expires_in: 5.minutes, size: 16.megabytes}.merge(options))
+      layers << ActiveSupport::Cache::MemoryStore.new({expires_in: 1.day, size: 32.megabytes}.merge(options))
     end
 
-    message = "All layers must be instances of ActiveSupport::Cache::Store"
-    layers.each do |layer|
-      raise ArgumentError.new(message) unless layer.is_a?(ActiveSupport::Cache::Store)
-    end
+    stores = layers.select { |layer| layer.is_a? ActiveSupport::Cache::Store }
+    raise ArgumentError.new("All layers must be instances of ActiveSupport::Cache::Store") unless stores.size == layers.size
 
-    layers.freeze
-    @layers = layers
+    @layers = layers.freeze
+    @logger = options[:logger]
+    @options = options
   end
 
   def cleanup(...)
-    layers.each { |store| store.cleanup(...) }
+    layers.each { |layer| layer.cleanup(...) }
   end
 
   def clear(...)
-    layers.each { |store| store.clear(...) }
+    layers.each { |layer| layer.clear(...) }
   end
 
-  def decrement(...)
-    layers.each { |store| store.decrement(...) }
+  def increment(name, amount = 1, options = nil)
+    value = layers.last.increment(name, amount, options)
+    provisional_layers.each { |layer| layer.write(name, value, options) }
+    value
+  end
+
+  def decrement(name, amount = 1, options = nil)
+    value = layers.last.decrement(name, amount, options)
+    provisional_layers.each { |layer| layer.write(name, value, options) }
+    value
   end
 
   def delete(...)
-    layers.each { |store| store.delete(...) }
+    layers.each { |layer| layer.delete(...) }
   end
 
   def delete_matched(...)
-    layers.each { |store| store.delete_matched(...) }
+    layers.each { |layer| layer.delete_matched(...) }
   end
 
   def delete_multi(...)
-    layers.each { |store| store.delete_multi(...) }
+    layers.map { |layer| layer.delete_multi(...) }.last
   end
 
   def exist?(...)
-    layers.each do |store|
-      return true if store.exist?(...)
+    layers.each do |layer|
+      return true if layer.exist?(...)
     end
     false
   end
 
-  def fetch(*args, &block)
-    f = ->(store) do
-      return store.fetch(*args, &block) if store == layers.last
-      store.fetch(*args) { f.call(layers[layers.index(store) + 1]) }
+  def fetch(name, options = nil, &block)
+    value = nil
+
+    unless options&.dig(:force) || options&.dig(:race_condition_ttl)
+      value = read(name, options)
+      return value if value
     end
-    f.call(layers.first)
+
+    layers.each do |layer|
+      if value
+        layer.write name, value, options
+      else
+        value = layer.fetch(name, options, &block)
+      end
+    end
+
+    value
   end
 
-  def fetch_multi(*args, &block)
-    fm = ->(store) do
-      return store.fetch_multi(*args, &block) if store == layers.last
-      store.fetch_multi(*args) { fm.call(layers[layers.index(store) + 1]) }
-    end
-    fm.call(layers.first)
-  end
+  def fetch_multi(*names, &block)
+    options = names.dup.extract_options!
+    value = {}
 
-  def increment(...)
-    layers.each { |store| store.increment(...) }
+    unless options[:force] || options[:race_condition_ttl]
+      value = read_multi(*names)
+      return value if value.compact.size == names.size
+    end
+
+    value = {}
+    layers.each do |layer|
+      if value
+        layer.write_multi value, options
+      else
+        value = layer.fetch_multi(*names, &block)
+      end
+    end
+
+    # names.each_with_object({}) { |name, memo| memo[name] = nil }
+    value
   end
 
   def mute
-    m = ->(store) do
-      return store.mute { yield } if store == layers.last
-      store.mute { m.call(layers[layers.index(store) + 1]) }
-    end
-    m.call(layers.first)
+    layers.each { |layer| layer.mute { yield } }
   end
 
-  def read(*args)
-    r = ->(store) do
-      return store.read(*args) if store == layers.last
-      store.fetch(*args) { r.call(layers[layers.index(store) + 1]) }
-    end
-    r.call(layers.first)
+  def read(...)
+    value = nil
+    layers.find { |layer| value = layer.read(...) }
+    value
   end
 
-  def read_multi(...)
-    missed_layers = []
-    layers.each do |store|
-      hash = store.read_multi(...)
-      if hash.present?
-        missed_layers.each { |s| s.write_multi(hash) }
-        return hash
-      end
-      missed_layers << store
+  def read_multi(*names)
+    value = {}
+    layers.each do |layer|
+      value = layer.read_multi(*names)
+      return value if value.size == names.size
     end
-    {}
+    value
   end
 
   def silence!
-    layers.each { |store| store.silence! }
+    layers.each { |layer| layer.silence! }
   end
 
   def write(name, value, options = nil)
-    layers.each do |store|
-      store.write name, value, permitted_options(store, options)
+    return_value = false
+    layers.each do |layer|
+      return_value = layer.write(name, value, permitted_options(layer, options))
     end
+    return_value
   end
 
   def write_multi(hash, options = nil)
-    layers.each do |store|
-      store.write_multi hash, permitted_options(store, options)
+    layers.each do |layer|
+      layer.write_multi hash, permitted_options(layer, options)
     end
   end
 
   private
 
-  def permitted_options(store, options = {})
+  def provisional_layers
+    layers.take layers.size - 1
+  end
+
+  def permitted_options(layer, options = {})
+    options = {} unless options.is_a?(Hash)
     return options if options.blank?
-    return options if keep_expiration?(store, options)
+    return options if keep_expiration?(layer, options)
     options.except(:expires_in, :expires_at)
   end
 
-  def keep_expiration?(store, options = {})
-    return true if store == layers.last
-    return true unless store.options[:expires_in]
+  def keep_expiration?(layer, options = {})
+    return true if layer == layers.last
+    return true unless layer.options[:expires_in]
 
     expires_in = options[:expires_in]
-    expires_in ||= Time.current - options[:expires_at] if options[:expires_at]
+    if options[:expires_at]
+      expires_in ||= options[:expires_at] - Time.current
+      options.delete(:expires_at)
+    end
     return false unless expires_in
 
-    expires_in < store.options[:expires_in]
+    expires_in < layer.options[:expires_in]
   end
 end

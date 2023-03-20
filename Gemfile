@@ -2,7 +2,6 @@
 
 source "https://rubygems.org"
 
-# Specify your gem's dependencies in composite_cache_store.gemspec
-gemspec
+gem "activesupport", github: "rails/rails", require: "active_support"
 
-gem "rake", "~> 13.0"
+gemspec
