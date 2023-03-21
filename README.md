@@ -129,16 +129,18 @@ end
 # config/initializers/composite_cache_store.rb
 def Rails.composite_cache
   @composite_cache ||= CompositeCacheStore.new(
-    # Layer 1 cache (inner) - employs an LRU eviction policy
-    ActiveSupport::Cache::MemoryStore.new(
-      expires_in: 15.minutes, # constrain entry lifetime so the local cache doesn't drift out of sync
-      size: 32.megabytes # constrain max memory used by the local cache
-    ),
+    layers: [
+      # Layer 1 cache (inner) - employs an LRU eviction policy
+      ActiveSupport::Cache::MemoryStore.new(
+        expires_in: 15.minutes, # constrain entry lifetime so the local cache doesn't drift out of sync
+        size: 32.megabytes # constrain max memory used by the local cache
+      ),
 
-    # Layer 2 cache (outer)
-    Rails.cache, # use whatever makes sense for your app
+      # Layer 2 cache (outer)
+      Rails.cache, # use whatever makes sense for your app
 
-    # additional layers are optional
+      # additional layers are optional
+    ]
   )
 end
 ```
@@ -148,12 +150,13 @@ end
 A composite cache is ideal for mitigating hot spot latency in frequently invoked areas of the codebase.
 
 ```ruby
-# method that's invoked frequently by multiple processes
+# method that's invoked frequently by multiple processes/machines
 def hotspot
-  # NOTE: expiration options are only applied to the outermost cache
-  #       inner caches use their globally configured expiration policy
-  Rails.composite_cache.fetch("example/slow/operation", expires_in: 12.hours) do
-    # a slow operation
+  # NOTE: expiration options are only applied to the outer-most layer
+  #       inner layers will use their globally configured expiration policy
+  #       unless the per-entry exiration is less than the layer's global policy
+  Rails.composite_cache.fetch("example", expires_in: 12.hours) do
+    # computationally expensive operation with high latency...
   end
 end
 ```
