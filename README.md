@@ -80,17 +80,18 @@ _but all cache layers should be much faster than the underlying operations being
 ### Eventually Consistent
 
 Layered caching techniques exhibit some of the same traits as distributed systems
-in that some layers may hold __stale data__ until their entries expire.
-Be sure to __configure inner layers with shorter lifetimes__.
-Note that this behavior is similar to the
+because inner layers may hold onto __stale data__ until their entries expire.
+__Be sure to configure inner layers with shorter lifetimes__.
+
+Note that this behavior is also similar to the
 [`race_condition_ttl`](https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch-label-Options)
 option in `ActiveSupport::Cache::Store` which helps avoid race conditions whenever multiple threads/processes attempt to write to the same cache entry simultaneously.
 
 #### Gotchas
 
-- __Data consistency__: it's possible to end up with inconsistent or stale data
-- __Over-caching__: caching too much can lead to increased memory usage and even slower performance
-- __Bugs/Testing__: difficult bugs can be introduced with sophisticated caching techniques
+- __Data consistency__ - it's possible to end up with inconsistent or stale data
+- __Over-caching__ - caching too much can lead to increased memory usage and even slower performance
+- __Bugs/Testing__ - difficult bugs can be introduced with sophisticated caching techniques
 
 ## Sponsors
 
