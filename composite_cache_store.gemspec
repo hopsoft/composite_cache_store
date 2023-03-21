@@ -37,4 +37,5 @@ Gem::Specification.new do |s|
   s.add_development_dependency "pry-doc"
   s.add_development_dependency "rake"
   s.add_development_dependency "standard"
+  s.add_development_dependency "tocer"
 end
