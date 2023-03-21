@@ -69,11 +69,11 @@ This is a strategy that can yield several benefits.
 - __Reduced load__
 - __Enhanced capacity/scalability__
 
-Inner layer(s) are closer to the app's executing code, _typically in-memory within the same process_.
+Inner cache layer(s) should be closer to the app's executing code, _typically in-memory within the same process_.
 They provide the fastest reads and the shortest entry lifetime.
-Outer layers are further away from the app's executing code,
+Outer layers will often be further away from the app's executing code,
 _typically a third-party service (Redis, Memcached, etc.) running on separate machine(s)._
-Outer layers are also more likely to be shared across processes, dynos, and servers.
+Outer layers are also typically shared by multiple processes, dynos, and servers.
 
 You can configure each layer with different expiration times, eviction policies, and storage mechanisms...
 This puts you in control of balancing the trade-offs between performance and data freshness.
