@@ -1,12 +1,11 @@
 <p align="center">
   <h1 align="center">CompositeCacheStore 🚀</h1>
-  <h2 align="center">Boost application speed and maximize user satisfaction with layered caching</h2>
   <p align="center">
     <a href="http://blog.codinghorror.com/the-best-code-is-no-code-at-all/">
       <img alt="Lines of Code" src="https://img.shields.io/badge/loc-119-47d299.svg" />
     </a>
     <a href="https://codeclimate.com/github/hopsoft/composite_cache_store/maintainability">
-      <img src="" />
+      <img src="https://api.codeclimate.com/v1/badges/80bcd3acced072534a3a/maintainability" />
     </a>
     <a href="https://rubygems.org/gems/composite_cache_store">
       <img alt="GEM Version" src="https://img.shields.io/gem/v/composite_cache_store?color=168AFE&include_prereleases&logo=ruby&logoColor=FE1616">
@@ -31,6 +30,7 @@
       <img alt="Twitter Follow" src="https://img.shields.io/twitter/url?label=%40hopsoft&style=social&url=https%3A%2F%2Ftwitter.com%2Fhopsoft">
     </a>
   </p>
+  <h2 align="center">Boost application speed and maximize user satisfaction with layered caching</h2>
 </p>
 
 <!-- Tocer[start]: Auto-generated, don't remove. -->
