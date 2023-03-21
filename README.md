@@ -37,10 +37,10 @@
 
 ## Table of Contents
 
+  - [Sponsors](#sponsors)
   - [Why a composite cache?](#why-a-composite-cache)
     - [Eventually Consistent](#eventually-consistent)
       - [Gotchas](#gotchas)
-  - [Sponsors](#sponsors)
   - [Dependencies](#dependencies)
   - [Installation](#installation)
   - [Setup](#setup)
@@ -49,6 +49,17 @@
   - [License](#license)
 
 <!-- Tocer[finish]: Auto-generated, don't remove. -->
+
+## Sponsors
+
+<p align="center">
+  <em>Proudly sponsored by</em>
+</p>
+<p align="center">
+  <a href="https://www.clickfunnels.com?utm_source=hopsoft&utm_medium=open-source&utm_campaign=composite_cache_store">
+    <img src="https://images.clickfunnel.com/uploads/digital_asset/file/176632/clickfunnels-dark-logo.svg" width="575" />
+  </a>
+</p>
 
 ## Why a composite cache?
 
@@ -92,17 +103,6 @@ option in `ActiveSupport::Cache::Store` which helps avoid race conditions whenev
 - __Data consistency__ - it's possible to end up with inconsistent or stale data
 - __Over-caching__ - caching too much can lead to increased memory usage and even slower performance
 - __Bugs/Testing__ - difficult bugs can be introduced with sophisticated caching techniques
-
-## Sponsors
-
-<p align="center">
-  <em>Proudly sponsored by</em>
-</p>
-<p align="center">
-  <a href="https://www.clickfunnels.com?utm_source=hopsoft&utm_medium=open-source&utm_campaign=composite_cache_store">
-    <img src="https://images.clickfunnel.com/uploads/digital_asset/file/176632/clickfunnels-dark-logo.svg" width="575" />
-  </a>
-</p>
 
 ## Dependencies
 
