@@ -2,8 +2,8 @@
 
 source "https://rubygems.org"
 
-if ENV["COMPOSITE_CACHE_STORE_ENV"] == "test"
-  gem "activesupport", github: "rails/rails", require: "active_support"
+git "https://github.com/rails/rails.git" do
+  gem "activesupport", require: "active_support" if ENV["COMPOSITE_CACHE_STORE_ENV"] == "test"
 end
 
 gemspec
