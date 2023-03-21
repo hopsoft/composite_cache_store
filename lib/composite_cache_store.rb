@@ -64,12 +64,8 @@ class CompositeCacheStore
   end
 
   def fetch(name, options = nil, &block)
-    value = nil
-
-    unless options&.dig(:force) || options&.dig(:race_condition_ttl)
-      value = read(name, options)
-      return value if value
-    end
+    value = read(name, options) unless options&.dig(:force) || options&.dig(:race_condition_ttl)
+    return value if value
 
     layers.each do |layer|
       if value
@@ -82,25 +78,22 @@ class CompositeCacheStore
     value
   end
 
-  def fetch_multi(*names, &block)
-    options = names.dup.extract_options!
-    value = {}
+  def fetch_multi(*args, &block)
+    names = args.dup
+    options = names.extract_options!
 
-    unless options[:force] || options[:race_condition_ttl]
-      value = read_multi(*names)
-      return value if value.compact.size == names.size
-    end
+    value = read_multi(*names) unless options[:force] || options[:race_condition_ttl]
+    value ||= {}
+    return value if value.compact.size == names.size
 
     value = {}
     layers.each do |layer|
-      if value
+      if value.compact.size == names.size
         layer.write_multi value, options
       else
-        value = layer.fetch_multi(*names, &block)
+        value = layer.fetch_multi(*args, &block)
       end
     end
-
-    # names.each_with_object({}) { |name, memo| memo[name] = nil }
     value
   end
 
@@ -108,18 +101,27 @@ class CompositeCacheStore
     layers.each { |layer| layer.mute { yield } }
   end
 
-  def read(...)
+  def read(name, options = nil)
     value = nil
-    layers.find { |layer| value = layer.read(...) }
+    cache_miss_layers = []
+    layers.find do |layer|
+      value = layer.read(name, options)
+      cache_miss_layers << layer unless value
+      value
+    end
+    cache_miss_layers.each { |layer| layer.write(name, value, options) } if value
     value
   end
 
   def read_multi(*names)
     value = {}
-    layers.each do |layer|
+    cache_miss_layers = []
+    layers.find do |layer|
       value = layer.read_multi(*names)
-      return value if value.size == names.size
+      cache_miss_layers << layer unless value.size == names.size
+      value.size == names.size
     end
+    cache_miss_layers.each { |layer| layer.write_multi(value, options) } if value.size == names.size
     value
   end
 
@@ -128,43 +130,16 @@ class CompositeCacheStore
   end
 
   def write(name, value, options = nil)
-    return_value = false
-    layers.each do |layer|
-      return_value = layer.write(name, value, permitted_options(layer, options))
-    end
-    return_value
+    layers.map { |layer| layer.write(name, value, options) }.last
   end
 
   def write_multi(hash, options = nil)
-    layers.each do |layer|
-      layer.write_multi hash, permitted_options(layer, options)
-    end
+    layers.map { |layer| layer.write_multi(hash, options) }.last
   end
 
   private
 
   def provisional_layers
     layers.take layers.size - 1
-  end
-
-  def permitted_options(layer, options = {})
-    options = {} unless options.is_a?(Hash)
-    return options if options.blank?
-    return options if keep_expiration?(layer, options)
-    options.except(:expires_in, :expires_at)
-  end
-
-  def keep_expiration?(layer, options = {})
-    return true if layer == layers.last
-    return true unless layer.options[:expires_in]
-
-    expires_in = options[:expires_in]
-    if options[:expires_at]
-      expires_in ||= options[:expires_at] - Time.current
-      options.delete(:expires_at)
-    end
-    return false unless expires_in
-
-    expires_in < layer.options[:expires_in]
   end
 end

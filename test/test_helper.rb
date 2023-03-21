@@ -12,7 +12,12 @@ require "active_support/all"
 require "testing/method_call_assertions_test" # path: activesupport/test/testing/method_call_assertions_test.rb
 require "cache/behaviors" # path: activesupport/test/cache/behaviors.rb
 
-require "minitest/reporters"
-require_relative "../lib/composite_cache_store"
+# cache test behavior overrides
+require "behaviors/composite_cache_store_behavior"
+require "behaviors/composite_cache_increment_decrement_behavior"
+require "behaviors/composite_cache_store_coder_behavior"
 
-Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
+require "minitest/reporters"
+Minitest::Reporters.use!
+
+require_relative "../lib/composite_cache_store"
