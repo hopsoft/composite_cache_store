@@ -38,7 +38,8 @@
 ## Table of Contents
 
   - [Why a composite cache?](#why-a-composite-cache)
-    - [Gotchas](#gotchas)
+    - [Eventually Consistent](#eventually-consistent)
+      - [Gotchas](#gotchas)
   - [Sponsors](#sponsors)
   - [Dependencies](#dependencies)
   - [Installation](#installation)
@@ -51,39 +52,41 @@
 
 ## Why a composite cache?
 
+Layered caching allows you to stack multiple caches... with different scopes, lifetimes, and levels of reliability.
+This is a strategy that can yield several benefits.
+
 - __Improved performance__
 - __Higher throughput__
 - __Reduced load__
 - __Enhanced capacity/scalability__
 
-Layered caching enables a caching strategy that stacks multiple caches on top of each other
-Each layer having a different scope, lifetime, and level of reliability.
-
-The inner most layer is closest to the app's executing code, _typically in-memory in the same process_.
-It provides the fastest reads but has the shortest lifetime for entries.
-
+Inner layer(s) are closer to the app's executing code, _typically in-memory within the same process_.
+They provide the fastest reads and the shortest entry lifetime.
 Outer layers are further away from the app's executing code,
-_typically on another server running as a third-party service (Redis, Memcached, etc.)_.
-Outer layers are also more likely to be shared by processes, dynos, and servers.
+_typically a third-party service (Redis, Memcached, etc.) running on separate machine(s)._
+Outer layers are also more likely to be shared across processes, dynos, and servers.
 
-You can configure the cache to meet your specific requirements
-with different expiration times, eviction policies, and storage mechanisms for each layer...
+You can configure each layer with different expiration times, eviction policies, and storage mechanisms...
 This puts you in control of balancing the trade-offs between performance and data freshness.
 
-Think of it this way, "Inner layers are supersonic while outer layers are fast."
+__Inner layers are supersonic while outer layers are speedy.__
+
 A cache hit on a local in-memory store compared to a cache hit on a remote out-of-memory store
 is the equivalent of making a quick grocery run in a
 [Bugatti Chiron Super Sport 300+](https://www.bugatti.com/models/chiron-models/chiron-super-sport-300/)
-versus making the same trip on a bicyle.
+versus making the same trip on a bicyle...
+_but all cache layers should be much faster than the underlying operations being optimized._
 
-It's worth noting layered caching techniques bear some of the hallmarks of distributed systems,
-in that some layers may hold stale data until their entries expire.
-Just be sure to __configure inner layers with shorter lifetimes__.
-Note that this characteristic is also similar to the
+### Eventually Consistent
+
+Layered caching techniques exhibit some of the same traits as distributed systems
+in that some layers may hold __stale data__ until their entries expire.
+Be sure to __configure inner layers with shorter lifetimes__.
+Note that this behavior is similar to the
 [`race_condition_ttl`](https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch-label-Options)
-option in `ActiveSupport::Cache::Store`, which helps you avoid race conditions when multiple processes or threads attempt to write to the same cache key simultaneously.
+option in `ActiveSupport::Cache::Store` which helps avoid race conditions whenever multiple threads/processes attempt to write to the same cache entry simultaneously.
 
-### Gotchas
+#### Gotchas
 
 - __Data consistency__: it's possible to end up with inconsistent or stale data
 - __Over-caching__: caching too much can lead to increased memory usage and even slower performance
