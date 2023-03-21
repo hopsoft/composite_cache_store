@@ -19,8 +19,10 @@ task :test do
   puts "done!".colorize(:blue)
   Rake::Task["minitest"].invoke
 ensure
-  ENV["COMPOSITE_CACHE_STORE_ENV"] = nil
-  print "Restoring bundle with activesupport from rubygems... ".colorize(:blue)
-  `rm -rf Gemfile.lock && bundle`
-  puts "done!".colorize(:blue)
+  if ENV["GITHUB_ACTIONS"] != "true"
+    ENV["COMPOSITE_CACHE_STORE_ENV"] = nil
+    print "Restoring bundle with activesupport from rubygems... ".colorize(:blue)
+    `rm -rf Gemfile.lock && bundle`
+    puts "done!".colorize(:blue)
+  end
 end
