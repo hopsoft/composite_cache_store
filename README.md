@@ -40,7 +40,6 @@
   - [Sponsors](#sponsors)
   - [Why a composite cache?](#why-a-composite-cache)
     - [Eventually Consistent](#eventually-consistent)
-      - [Gotchas](#gotchas)
   - [Dependencies](#dependencies)
   - [Installation](#installation)
   - [Setup](#setup)
@@ -97,7 +96,7 @@ Note that this behavior is also similar to the
 [`race_condition_ttl`](https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch-label-Options)
 option in `ActiveSupport::Cache::Store` which helps avoid race conditions whenever multiple threads/processes attempt to write to the same cache entry simultaneously.
 
-#### Gotchas
+__Be mindful of the potential gotchas.__
 
 - __Data consistency__ - it's possible to end up with inconsistent or stale data
 - __Over-caching__ - caching too much can lead to increased memory usage and even slower performance
