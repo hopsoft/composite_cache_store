@@ -39,7 +39,7 @@
 
   - [Sponsors](#sponsors)
   - [Why a composite cache?](#why-a-composite-cache)
-    - [Eventually Consistent](#eventually-consistent)
+  - [Eventual consistentency](#eventual-consistentency)
   - [Dependencies](#dependencies)
   - [Installation](#installation)
   - [Setup](#setup)
@@ -86,11 +86,11 @@ is the equivalent of making a quick grocery run in a
 versus making the same trip on a bicyle...
 _but all cache layers should be much faster than the underlying operations being optimized._
 
-### Eventually Consistent
+## Eventual consistentency
 
-Layered caching techniques exhibit some of the same traits as distributed systems
+Layered caching techniques exhibit some of the same traits as [distributed systems](https://en.wikipedia.org/wiki/Eventual_consistency)
 because inner layers may hold onto __stale data__ until their entries expire.
-__Be sure to configure inner layers with shorter lifetimes__.
+__Be sure to configure inner layers appropriately with shorter lifetimes__.
 
 Note that this behavior is also similar to the
 [`race_condition_ttl`](https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch-label-Options)
