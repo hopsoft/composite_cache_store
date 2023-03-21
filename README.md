@@ -44,7 +44,6 @@
   - [Dependencies](#dependencies)
   - [Installation](#installation)
   - [Setup](#setup)
-    - [Ruby on Rails](#ruby-on-rails)
   - [Usage](#usage)
   - [License](#license)
 
@@ -116,7 +115,7 @@ bundle add "composite_cache_store"
 
 ## Setup
 
-### Ruby on Rails
+Here's an example of how you might set up layered caching in a Rails application.
 
 ```ruby
 # config/environments/production.rb
