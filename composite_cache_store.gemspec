@@ -30,9 +30,9 @@ Gem::Specification.new do |s|
 
   s.add_dependency "activesupport", ">= 6.0"
 
-  s.add_development_dependency "colorize"
   s.add_development_dependency "magic_frozen_string_literal"
   s.add_development_dependency "minitest-reporters"
+  s.add_development_dependency "paint"
   s.add_development_dependency "pry-byebug"
   s.add_development_dependency "pry-doc"
   s.add_development_dependency "rake"

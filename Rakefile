@@ -2,7 +2,15 @@
 
 require "bundler/gem_tasks"
 require "minitest/test_task"
-require "colorize"
+require "paint"
+
+# versions of rails to test against
+rails_versions = %w[
+  v5.2.8.1
+  v6.1.7.3
+  v7.0.4.3
+  edge
+]
 
 task default: :test
 
@@ -11,18 +19,21 @@ Minitest::TestTask.create(:minitest) do |t|
 end
 
 task :test do
-  print "Bundling with activesupport from github ".colorize(:blue)
-  print "(required for tests provided by rails)... ".colorize(:light_blue)
-  `bundle`
   ENV["COMPOSITE_CACHE_STORE_ENV"] = "test"
-  `bundle update activesupport`
-  puts "done!".colorize(:blue)
-  Rake::Task["minitest"].invoke
+  rails_versions.each do |rails_version|
+    ENV["RAILS_VERSION"] = (rails_version == "edge") ? nil : rails_version
+    puts Paint % ["Bundling activesupport %{version} from github ", :blue, :underline, version: [rails_version, "sky blue", :underline]]
+    print Paint["required for tests provided by rails... ", "slate gray"]
+    `bundle update activesupport`
+    puts "done!\n\n"
+    Rake::Task["minitest"].invoke
+    Rake::Task["minitest"].reenable unless rails_version == rails_versions.last
+  end
 ensure
   if ENV["GITHUB_ACTIONS"] != "true"
     ENV["COMPOSITE_CACHE_STORE_ENV"] = nil
-    print "Restoring bundle with activesupport from rubygems... ".colorize(:blue)
-    `rm -rf Gemfile.lock && bundle`
-    puts "done!".colorize(:blue)
+    print Paint["Restoring bundle with activesupport from rubygems... ", :blue]
+    `bundle update activesupport`
+    puts "done!"
   end
 end
