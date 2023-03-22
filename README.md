@@ -1,8 +1,5 @@
 <p align="center">
   <h1 align="center">CompositeCacheStore 🚀</h1>
-  <picture>
-    <img height="250" src="https://ik.imagekit.io/hopsoft/composite_cache_store_jnHZcjAuK.svg?updatedAt=1679445477496" />
-  </picture>
   <p align="center">
     <a href="http://blog.codinghorror.com/the-best-code-is-no-code-at-all/">
       <img alt="Lines of Code" src="https://img.shields.io/badge/loc-119-47d299.svg" />
@@ -33,6 +30,9 @@
       <img alt="Twitter Follow" src="https://img.shields.io/twitter/url?label=%40hopsoft&style=social&url=https%3A%2F%2Ftwitter.com%2Fhopsoft">
     </a>
   </p>
+  <picture align="center">
+    <img height="250" src="https://ik.imagekit.io/hopsoft/composite_cache_store_jnHZcjAuK.svg?updatedAt=1679445477496" />
+  </picture>
   <h2 align="center">Boost application speed and maximize user satisfaction with layered caching</h2>
 </p>
 
