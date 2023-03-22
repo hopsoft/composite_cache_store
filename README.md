@@ -30,7 +30,6 @@
       <img alt="Twitter Follow" src="https://img.shields.io/twitter/url?label=%40hopsoft&style=social&url=https%3A%2F%2Ftwitter.com%2Fhopsoft">
     </a>
   </p>
-  <img height="250" src="https://ik.imagekit.io/hopsoft/composite_cache_store_jnHZcjAuK.svg?updatedAt=1679445477496" />
   <h2 align="center">Boost application speed and maximize user satisfaction with layered caching</h2>
 </p>
 
@@ -75,6 +74,8 @@ They provide the fastest reads and the shortest entry lifetime.
 Outer layers will often be further away from the app's executing code,
 _typically a third-party service (Redis, Memcached, etc.) running on separate machine(s)._
 Outer layers are also typically shared by multiple processes, dynos, and servers.
+
+<img height="250" src="https://ik.imagekit.io/hopsoft/composite_cache_store_jnHZcjAuK.svg?updatedAt=1679445477496" />
 
 You can configure each layer with different expiration times, eviction policies, and storage mechanisms...
 This puts you in control of balancing the trade-offs between performance and data freshness.
