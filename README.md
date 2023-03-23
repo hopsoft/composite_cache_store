@@ -82,11 +82,12 @@ This puts you in control of balancing the trade-offs between performance and dat
 
 __Inner layers are supersonic while outer layers are speedy.__
 
-A cache hit on a local in-memory store compared to a cache hit on a remote out-of-memory store
-is the equivalent of making a quick grocery run in a
+Consider this analogy.
+The difference between a cache hit on a local in-memory store versus a cache hit on a remote store
+is basically the equivalent of making a grocery run in a
 [Bugatti Chiron Super Sport 300+](https://www.bugatti.com/models/chiron-models/chiron-super-sport-300/)
-versus making the same trip on a bicyle...
-_but all cache layers should be much faster than the underlying operations being optimized._
+compared to making the same trip on a bicyle... but all cache layers will be much faster than the underlying operations.
+For example, a complete cache miss _(that triggers database queries and view rendering)_ would be equivalent to making this trip while riding a sloth.
 
 ## Eventual consistentency
 
@@ -119,27 +120,33 @@ bundle add "composite_cache_store"
 Here's an example of how you might set up layered caching in a Rails application.
 
 ```ruby
-# config/environments/production.rb
-module Example
-  class Application < Rails::Application
-    config.cache_store = :redis_cache_store, { url: "redis://example.com:6379/1" }
-  end
-end
-```
-
-```ruby
 # config/initializers/composite_cache_store.rb
 def Rails.composite_cache
   @composite_cache ||= CompositeCacheStore.new(
     layers: [
-      # Layer 1 cache (inner) - employs an LRU eviction policy
+      # Layer 1 cache (fastest)
+      # Most beneficial for high traffic volume
+      # Isolated to the process running an application instance
       ActiveSupport::Cache::MemoryStore.new(
-        expires_in: 15.minutes, # constrain entry lifetime so the local cache doesn't drift out of sync
-        size: 32.megabytes # constrain max memory used by the local cache
+        expires_in: 15.minutes,
+        size: 32.megabytes
       ),
 
-      # Layer 2 cache (outer)
-      Rails.cache, # use whatever makes sense for your app
+      # Layer 2 cache (faster)
+      # Most beneficial for moderate traffic volume
+      # Isolated to the machine running N-number of application instances,
+      # and shared by all application processes on the machine
+      ActiveSupport::Cache::RedisCacheStore.new(
+        url: "redis://localhost:6379/0",
+        expires_in: 2.hours
+      ),
+
+      # Layer 3 cache (fast)
+      # Global cached shared by all application processes on all machines
+      ActiveSupport::Cache::RedisCacheStore.new(
+        url: "redis://remote.example.com:6379/0",
+        expires_in: 7.days
+      ),
 
       # additional layers are optional
     ]

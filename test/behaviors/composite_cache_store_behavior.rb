@@ -23,6 +23,8 @@ module CompositeCacheStoreBehavior
     test_nil_with_compress_low_compress_threshold
     test_nil_with_compress_true
     test_nil_with_default_compression_settings
+    test_race_condition_protection
+    test_race_condition_protection_is_safe
     test_race_condition_protection_skipped_if_not_defined
     test_small_object_with_compress_false
     test_small_object_with_compress_true
