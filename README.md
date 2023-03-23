@@ -2,7 +2,7 @@
   <h1 align="center">CompositeCacheStore 🚀</h1>
   <p align="center">
     <a href="http://blog.codinghorror.com/the-best-code-is-no-code-at-all/">
-      <img alt="Lines of Code" src="https://img.shields.io/badge/loc-119-47d299.svg" />
+      <img alt="Lines of Code" src="https://img.shields.io/badge/loc-133-47d299.svg" />
     </a>
     <a href="https://codeclimate.com/github/hopsoft/composite_cache_store/maintainability">
       <img src="https://api.codeclimate.com/v1/badges/80bcd3acced072534a3a/maintainability" />
@@ -61,33 +61,29 @@
 
 ## Why a composite cache?
 
-Layered caching allows you to stack multiple caches... with different scopes, lifetimes, and levels of reliability.
-This is a strategy that can yield several benefits.
+Layered caching allows you to stack multiple caches with different scopes, lifetimes, and levels of reliability.
+A technique that yields several benefits.
 
 - __Improved performance__
 - __Higher throughput__
 - __Reduced load__
 - __Enhanced capacity/scalability__
 
-Inner cache layer(s) should be closer to the app's executing code, _typically in-memory within the same process_.
-They provide the fastest reads and the shortest entry lifetime.
-Outer layers will often be further away from the app's executing code,
-_typically a third-party service (Redis, Memcached, etc.) running on separate machine(s)._
-Outer layers are also typically shared by multiple processes, dynos, and servers.
+Inner cache layer(s) provide the fastest reads as they're close to the application, _typically in-memory within the same process_.
+Outer layers are slower _(still fast)_ but are shared by multiple processes and servers.
 
 <img height="250" src="https://ik.imagekit.io/hopsoft/composite_cache_store_jnHZcjAuK.svg?updatedAt=1679445477496" />
 
-You can configure each layer with different expiration times, eviction policies, and storage mechanisms...
-This puts you in control of balancing the trade-offs between performance and data freshness.
+You can configure each layer with different expiration times, eviction policies, and storage mechanisms.
+You're in control of balancing the trade-offs between performance and data freshness.
 
 __Inner layers are supersonic while outer layers are speedy.__
 
-Consider this analogy.
 The difference between a cache hit on a local in-memory store versus a cache hit on a remote store
-is basically the equivalent of making a grocery run in a
+is similar to making a grocery run in a
 [Bugatti Chiron Super Sport 300+](https://www.bugatti.com/models/chiron-models/chiron-super-sport-300/)
-compared to making the same trip on a bicyle... but all cache layers will be much faster than the underlying operations.
-For example, a complete cache miss _(that triggers database queries and view rendering)_ would be equivalent to making this trip while riding a sloth.
+compared to making the same trip on a bicyle, but all cache layers will be much faster than the underlying operations.
+For example, a complete cache miss _(that triggers database queries and view rendering)_ would be equivalent to making this trip riding a sloth.
 
 ## Eventual consistentency
 
@@ -95,9 +91,9 @@ Layered caching techniques exhibit some of the same traits as [distributed syste
 because inner layers may hold onto __stale data__ until their entries expire.
 __Be sure to configure inner layers appropriately with shorter lifetimes__.
 
-Note that this behavior is also similar to the
+This behavior is similar to the
 [`race_condition_ttl`](https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch-label-Options)
-option in `ActiveSupport::Cache::Store` which helps avoid race conditions whenever multiple threads/processes attempt to write to the same cache entry simultaneously.
+option in `ActiveSupport::Cache::Store` which helps to avoid race conditions whenever multiple threads/processes try to write to the same cache entry simultaneously.
 
 __Be mindful of the potential gotchas.__
 
@@ -161,9 +157,6 @@ A composite cache is ideal for mitigating hot spot latency in frequently invoked
 ```ruby
 # method that's invoked frequently by multiple processes/machines
 def hotspot
-  # NOTE: expiration options are only applied to the outer-most layer
-  #       inner layers will use their globally configured expiration policy
-  #       unless the per-entry exiration is less than the layer's global policy
   Rails.composite_cache.fetch("example", expires_in: 12.hours) do
     # computationally expensive operation with high latency...
   end
