@@ -64,37 +64,47 @@ class CompositeCacheStore
   end
 
   def fetch(name, options = nil, &block)
-    value = read(name, options) unless options&.dig(:force) || options&.dig(:race_condition_ttl)
-    return value if value
+    options ||= {}
 
-    layers.each do |layer|
-      if value
-        layer.write name, value, options
-      else
-        value = layer.fetch(name, options, &block)
-      end
+    if options[:force]
+      raise ArgumentError, "Missing block: Calling `Cache#fetch` with `force: true` requires a block." unless block
+      value = block&.call(name)
+      layers.each { |layer| layer.write(name, options) }
+      return value
     end
 
-    value
+    read(name, options) do |value, warm_layer, cold_layers|
+      value ||= block&.call(name) unless warm_layer
+      cold_layers.each do |layer|
+        layer.write(name, value, options) unless value.nil? && options[:skip_nil]
+      end
+      return value
+    end
   end
 
-  def fetch_multi(*args, &block)
-    names = args.dup
-    options = names.extract_options!
+  def fetch_multi(*names, &block)
+    raise ArgumentError, "Missing block: `Cache#fetch_multi` requires a block." unless block
 
-    value = read_multi(*names) unless options[:force] || options[:race_condition_ttl]
-    value ||= {}
-    return value if value.compact.size == names.size
+    keys = names.dup
+    options = keys.extract_options!
 
-    value = {}
-    layers.each do |layer|
-      if value.compact.size == names.size
-        layer.write_multi value, options
-      else
-        value = layer.fetch_multi(*args, &block)
-      end
+    if options[:force]
+      value = keys.each_with_object({}) { |key, memo| memo[key] = block&.call(key) }
+      layers.each { |layer| layer.write_multi(value, options) }
+      return value
     end
-    value
+
+    read_multi(*names) do |value, warm_layer, cold_layers|
+      missing_keys = keys - value.keys
+      missing_keys.each { |key| value[key] = block&.call(key) }
+
+      cold_layers.each do |layer|
+        value.compact! if options[:skip_nil]
+        layer.write_multi(value, options)
+      end
+
+      return keys.each_with_object({}) { |key, memo| memo[key] = value[key] }
+    end
   end
 
   def mute
@@ -102,26 +112,38 @@ class CompositeCacheStore
   end
 
   def read(name, options = nil)
+    warm_layer = nil
+    cold_layers = []
     value = nil
-    cache_miss_layers = []
-    layers.find do |layer|
+
+    layers.each do |layer|
       value = layer.read(name, options)
-      cache_miss_layers << layer unless value
-      value
+      warm_layer = layer if !value.nil? || layer.exist?(name, options)
+      break if warm_layer
+      cold_layers << layer
     end
-    cache_miss_layers.each { |layer| layer.write(name, value, options) } if value
+
+    yield(value, warm_layer, cold_layers) if block_given?
     value
   end
 
   def read_multi(*names)
+    keys = names.dup
+    keys.extract_options!
+
+    warm_layer = nil
+    cold_layers = []
     value = {}
-    cache_miss_layers = []
-    layers.find do |layer|
-      value = layer.read_multi(*names)
-      cache_miss_layers << layer unless value.size == names.size
-      value.size == names.size
+
+    layers.each do |layer|
+      hash = layer.read_multi(*names)
+      value.merge!(hash) if hash.size > value.size
+      warm_layer = layer if hash.size == keys.size
+      break if warm_layer
+      cold_layers << layer
     end
-    cache_miss_layers.each { |layer| layer.write_multi(value, options) } if value.size == names.size
+
+    yield(value, warm_layer, cold_layers) if block_given?
     value
   end
 

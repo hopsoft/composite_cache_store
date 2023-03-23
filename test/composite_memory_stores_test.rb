@@ -60,23 +60,22 @@ class CompositeMemoryStoresTest < MethodCallAssertionsTest
     assert_equal "All layers must be instances of ActiveSupport::Cache::Store", error.message
   end
 
-  test "write and read" do
+  def test_write_and_read
     @cache.write(:test, "value")
     assert_equal "value", @cache.read(:test)
     assert_equal "value", @cache.layers.first.read(:test)
     assert_equal "value", @cache.layers.last.read(:test)
   end
 
-  test "read rewrites to layer-1 cache on layer-1 cache miss" do
+  def test_read_miss_on_layer_1_and_read_hit_on_layer_2_without_side_effects
     @cache.write(:test, "value")
     sleep 1
+    assert_equal "value", @cache.read(:test) # layer-1 miss, layer-2 hit
     assert_nil @cache.layers.first.read(:test) # layer-1 miss
     assert_equal "value", @cache.layers.last.read(:test) # layer-2 hit
-    assert_equal "value", @cache.read(:test) # rewrites to layer-1
-    assert_equal "value", @cache.layers.first.read(:test) # layer-1 hit
   end
 
-  test "write_multi and read_multi" do
+  def test_write_multi_and_read_multi
     hash = {a: 1, b: 2, c: 3}
     @cache.write_multi(hash)
     assert_equal hash, @cache.read_multi(:a, :b, :c)
@@ -84,35 +83,42 @@ class CompositeMemoryStoresTest < MethodCallAssertionsTest
     assert_equal hash, @cache.layers.last.read_multi(:a, :b, :c)
   end
 
-  test "read_multi rewrites to layer-1 cache on layer-1 cache miss" do
+  def test_read_multi_miss_on_layer_1_and_read_multi_hit_on_layer_2_without_side_effects
     hash = {a: 1, b: 2, c: 3}
     @cache.write_multi(hash)
     sleep 1
-    assert @cache.layers.first.read_multi(:a, :b, :c).blank? # layer-1 miss
+    assert_equal hash, @cache.read_multi(:a, :b, :c) # layer-1 miss, layer-2 hit
+    assert_equal 0, @cache.layers.first.read_multi(:a, :b, :c).size # layer-1 miss
     assert_equal hash, @cache.layers.last.read_multi(:a, :b, :c) # layer-2 hit
-    assert_equal hash, @cache.read_multi(:a, :b, :c) # rewrites to layer-1
-    assert_equal hash, @cache.layers.first.read_multi(:a, :b, :c) # layer-1 hit
   end
 
-  test "fetch" do
+  def test_fetch
     @cache.fetch(:test) { "value" }
     assert_equal "value", @cache.read(:test)
     assert_equal "value", @cache.layers.first.read(:test)
     assert_equal "value", @cache.layers.last.read(:test)
   end
 
-  test "fetch rewrites to layer-1 cache on layer-1 cache miss" do
+  def test_fetch_rewrites_to_layer_1_cache_on_layer_1_cache_miss
     @cache.write(:test, "value")
     sleep 1
     assert_nil @cache.layers.first.read(:test) # layer-1 miss
     assert_equal "value", @cache.layers.last.read(:test) # layer-2 hit
-    @cache.fetch(:test) do # rewrites layer-1
-      "value"
-    end
+    @cache.fetch(:test) { "value" } # rewrites layer-1
     assert_equal "value", @cache.layers.first.read(:test) # layer-1 hit
   end
 
-  test "delete " do
+  def test_fetch_multi_rewrites_to_layer_1_cache_on_layer_1_cache_miss
+    expected = {a: "aa", b: "bb", c: "cc"}
+    @cache.write_multi(expected)
+    sleep 1
+    assert_equal 0, @cache.layers.first.read_multi(:a, :b, :c).size # layer-1 miss
+    assert_equal expected, @cache.layers.last.read_multi(:a, :b, :c) # layer-2 hit
+    @cache.fetch_multi(:a, :b, :c) { |key| key * 2 } # rewrites layer-1
+    assert_equal expected, @cache.layers.first.read_multi(:a, :b, :c) # layer-1 hit
+  end
+
+  def test_delete
     @cache.write(:test, "value")
     assert_equal "value", @cache.read(:test)
     assert_equal "value", @cache.layers.first.read(:test)
@@ -123,7 +129,7 @@ class CompositeMemoryStoresTest < MethodCallAssertionsTest
     assert_nil @cache.layers.last.read(:test)
   end
 
-  test "applies expires_in when value is less than cache's configured expires_in" do
+  def test_applies_expires_in_when_value_is_less_than_caches_configured_expires_in
     @cache.write(:test, "value", expires_in: 0.1.seconds)
     assert_equal "value", @cache.read(:test)
     assert_equal "value", @cache.layers.first.read(:test)
@@ -134,7 +140,7 @@ class CompositeMemoryStoresTest < MethodCallAssertionsTest
     assert_nil @cache.layers.last.read(:test)
   end
 
-  test "applies expires_at when computed expires_in is less than store's configured expires_in" do
+  def test_applies_expires_at_when_computed_expires_in_is_less_than_stores_configured_expires_in
     @cache.write(:test, "value", expires_at: 0.1.second.from_now)
     assert_equal "value", @cache.read(:test)
     assert_equal "value", @cache.layers.first.read(:test)
