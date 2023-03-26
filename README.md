@@ -138,7 +138,7 @@ def Rails.composite_cache
       ),
 
       # Layer 3 cache (fast)
-      # Global cached shared by all application processes on all machines
+      # Global cache shared by all application processes on all machines
       ActiveSupport::Cache::RedisCacheStore.new(
         url: "redis://remote.example.com:6379/0",
         expires_in: 7.days
