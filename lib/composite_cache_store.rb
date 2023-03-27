@@ -11,13 +11,11 @@ class CompositeCacheStore
   def initialize(options = {})
     options = options.dup || {}
     layers = options.delete(:layers) || []
-    if layers.blank?
-      layers << ActiveSupport::Cache::MemoryStore.new({expires_in: 5.minutes, size: 16.megabytes}.merge(options))
-      layers << ActiveSupport::Cache::MemoryStore.new({expires_in: 1.day, size: 32.megabytes}.merge(options))
-    end
+
+    raise ArgumentError.new("A layered cache requires more than 1 layer!") unless layers.size > 1
 
     stores = layers.select { |layer| layer.is_a? ActiveSupport::Cache::Store }
-    raise ArgumentError.new("All layers must be instances of ActiveSupport::Cache::Store") unless stores.size == layers.size
+    raise ArgumentError.new("All layers must be instances of ActiveSupport::Cache::Store!") unless stores.size == layers.size
 
     @layers = layers.freeze
     @logger = options[:logger]
@@ -33,15 +31,13 @@ class CompositeCacheStore
   end
 
   def increment(name, amount = 1, options = nil)
-    value = layers.last.increment(name, amount, options)
-    provisional_layers.each { |layer| layer.write(name, value, options) }
-    value
+    provisional_layers.each { |layer| layer.delete(name, options) }
+    layers.last.increment(name, amount, options)
   end
 
   def decrement(name, amount = 1, options = nil)
-    value = layers.last.decrement(name, amount, options)
-    provisional_layers.each { |layer| layer.write(name, value, options) }
-    value
+    provisional_layers.each { |layer| layer.delete(name, options) }
+    layers.last.decrement(name, amount, options)
   end
 
   def delete(...)

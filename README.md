@@ -158,7 +158,15 @@ A composite cache is ideal for mitigating hot spot latency in frequently invoked
 # method that's invoked frequently by multiple processes/machines
 def hotspot
   Rails.composite_cache.fetch("example", expires_in: 12.hours) do
-    # computationally expensive operation with high latency...
+    # reserve for high frequency access of slow operations
+    #
+    # examples:
+    # - api invocations
+    # - database queries
+    # - template renders
+    # - etc.
+
+    frequently_accessed_slow_operation
   end
 end
 ```

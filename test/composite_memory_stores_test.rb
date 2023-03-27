@@ -19,29 +19,29 @@ class CompositeMemoryStoresTest < MethodCallAssertionsTest
   # include [Composite]FailureRaisingBehavior
   # include [Composite]CacheInstrumentationBehavior
 
-  def lookup_store(options = {})
-    CompositeCacheStore.new options
-  end
-
-  setup do
-    @cache = CompositeCacheStore.new(
+  def new_layered_memory_store(options = {})
+    CompositeCacheStore.new(
       layers: [
-        ActiveSupport::Cache::MemoryStore.new(expires_in: 1.second, size: 8.megabytes),
-        ActiveSupport::Cache::MemoryStore.new(expires_in: 1.minute, size: 64.megabytes)
+        ActiveSupport::Cache::MemoryStore.new(options.merge(expires_in: 1.second, size: 8.megabytes)),
+        ActiveSupport::Cache::MemoryStore.new(options.merge(expires_in: 1.minute, size: 64.megabytes))
       ]
     )
   end
 
+  def lookup_store(options = {})
+    new_layered_memory_store options
+  end
+
+  setup do
+    @cache = new_layered_memory_store
+  end
+
   def test_default_instantation
-    store = CompositeCacheStore.new
+    error = assert_raises(ArgumentError) do
+      CompositeCacheStore.new
+    end
 
-    expected = {expires_in: 5.minutes, size: 16.megabytes, compress: false, compress_threshold: 1.kilobyte}
-    assert store.layers.first.is_a?(ActiveSupport::Cache::MemoryStore)
-    assert_equal expected, store.layers.first.options
-
-    expected = {expires_in: 1.day, size: 32.megabytes, compress: false, compress_threshold: 1.kilobyte}
-    assert store.layers.last.is_a?(ActiveSupport::Cache::MemoryStore)
-    assert_equal expected, store.layers.last.options
+    assert_equal "A layered cache requires more than 1 layer!", error.message
   end
 
   def test_custom_instantation
@@ -57,7 +57,7 @@ class CompositeMemoryStoresTest < MethodCallAssertionsTest
       CompositeCacheStore.new(layers: [[], 1, true])
     end
 
-    assert_equal "All layers must be instances of ActiveSupport::Cache::Store", error.message
+    assert_equal "All layers must be instances of ActiveSupport::Cache::Store!", error.message
   end
 
   def test_write_and_read
