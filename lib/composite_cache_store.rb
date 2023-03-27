@@ -57,10 +57,7 @@ class CompositeCacheStore
   end
 
   def exist?(...)
-    layers.each do |layer|
-      return true if layer.exist?(...)
-    end
-    false
+    layers.any? { |layer| layer.exist?(...) }
   end
 
   def fetch(name, options = nil, &block)
