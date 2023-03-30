@@ -111,10 +111,22 @@ class CompositeCacheStore
     value = nil
 
     layers.each do |layer|
-      value = layer.read(name, options)
-      warm_layer = layer if !value.nil? || layer.exist?(name, options)
-      break if warm_layer
-      cold_layers << layer
+      hit = if layer.respond_to?(:with_local_cache)
+        layer.with_local_cache do
+          value = layer.read(name, options)
+          !value.nil? || layer.exist?(name, options)
+        end
+      else
+        value = layer.read(name, options)
+        !value.nil? || layer.exist?(name, options)
+      end
+
+      if hit
+        warm_layer = layer
+        break
+      else
+        cold_layers << layer
+      end
     end
 
     yield(value, warm_layer, cold_layers) if block_given?
