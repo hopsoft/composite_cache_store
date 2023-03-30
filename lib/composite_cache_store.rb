@@ -14,8 +14,9 @@ class CompositeCacheStore
 
     raise ArgumentError.new("A layered cache requires more than 1 layer!") unless layers.size > 1
 
-    stores = layers.select { |layer| layer.is_a? ActiveSupport::Cache::Store }
-    raise ArgumentError.new("All layers must be instances of ActiveSupport::Cache::Store!") unless stores.size == layers.size
+    unless layers.all? { |layer| layer.is_a? ActiveSupport::Cache::Store }
+      raise ArgumentError.new("All layers must be instances of ActiveSupport::Cache::Store!")
+    end
 
     @layers = layers.freeze
     @logger = options[:logger]
@@ -23,11 +24,11 @@ class CompositeCacheStore
   end
 
   def cleanup(...)
-    layers.each { |layer| layer.cleanup(...) }
+    layers.map { |layer| layer.cleanup(...) }.last
   end
 
   def clear(...)
-    layers.each { |layer| layer.clear(...) }
+    layers.map { |layer| layer.clear(...) }.last
   end
 
   def increment(name, amount = 1, options = nil)
@@ -41,11 +42,11 @@ class CompositeCacheStore
   end
 
   def delete(...)
-    layers.each { |layer| layer.delete(...) }
+    layers.map { |layer| layer.delete(...) }.last
   end
 
   def delete_matched(...)
-    layers.each { |layer| layer.delete_matched(...) }
+    layers.map { |layer| layer.delete_matched(...) }.last
   end
 
   def delete_multi(...)
@@ -101,7 +102,7 @@ class CompositeCacheStore
   end
 
   def mute
-    layers.each { |layer| layer.mute { yield } }
+    layers.map { |layer| layer.mute { yield } }.last
   end
 
   def read(name, options = nil)
@@ -141,7 +142,7 @@ class CompositeCacheStore
   end
 
   def silence!
-    layers.each { |layer| layer.silence! }
+    layers.map { |layer| layer.silence! }.last
   end
 
   def write(name, value, options = nil)
