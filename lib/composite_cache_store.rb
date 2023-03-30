@@ -23,38 +23,18 @@ class CompositeCacheStore
     @options = options
   end
 
-  def cleanup(...)
-    layers.map { |layer| layer.cleanup(...) }.last
+  def read(name, options = nil)
+    value = nil
+    warm_layer = layers.find { |layer| layer_read?(layer, name, options) { |val| value = val } }
+    yield(value, warm_layer) if block_given?
+    value
   end
 
-  def clear(...)
-    layers.map { |layer| layer.clear(...) }.last
-  end
-
-  def increment(name, amount = 1, options = nil)
-    provisional_layers.each { |layer| layer.delete(name, options) }
-    layers.last.increment(name, amount, options)
-  end
-
-  def decrement(name, amount = 1, options = nil)
-    provisional_layers.each { |layer| layer.delete(name, options) }
-    layers.last.decrement(name, amount, options)
-  end
-
-  def delete(...)
-    layers.map { |layer| layer.delete(...) }.last
-  end
-
-  def delete_matched(...)
-    layers.map { |layer| layer.delete_matched(...) }.last
-  end
-
-  def delete_multi(...)
-    layers.map { |layer| layer.delete_multi(...) }.last
-  end
-
-  def exist?(...)
-    layers.any? { |layer| layer.exist?(...) }
+  def read_multi(*names)
+    value = {}
+    warm_layer = layers.find { |layer| layer_read_multi?(layer, *names) { |val| value.merge!(val) } }
+    yield(value, warm_layer) if block_given?
+    value
   end
 
   def fetch(name, options = nil, &block)
@@ -63,15 +43,18 @@ class CompositeCacheStore
     if options[:force]
       raise ArgumentError, "Missing block: Calling `Cache#fetch` with `force: true` requires a block." unless block
       value = block&.call(name)
-      layers.each { |layer| layer.write(name, options) }
+      layers.each { |layer| layer.write(name, value, options) }
       return value
     end
 
-    read(name, options) do |value, warm_layer, cold_layers|
+    read(name, options) do |value, warm_layer|
       value ||= block&.call(name) unless warm_layer
-      cold_layers.each do |layer|
+
+      layers.each do |layer|
+        break if layer == warm_layer
         layer.write(name, value, options) unless value.nil? && options[:skip_nil]
       end
+
       return value
     end
   end
@@ -88,73 +71,22 @@ class CompositeCacheStore
       return value
     end
 
-    read_multi(*names) do |value, warm_layer, cold_layers|
-      missing_keys = keys - value.keys
-      missing_keys.each { |key| value[key] = block&.call(key) }
+    read_multi(*names) do |value, warm_layer|
+      unless warm_layer
+        missing_keys = keys - value.keys
+        missing_keys.each { |key| value[key] = block&.call(key) }
+      end
 
-      cold_layers.each do |layer|
-        value.compact! if options[:skip_nil]
+      value.compact! if options[:skip_nil]
+
+      layers.each do |layer|
+        break if layer == warm_layer
         layer.write_multi(value, options)
       end
 
+      # return ordered hash value
       return keys.each_with_object({}) { |key, memo| memo[key] = value[key] }
     end
-  end
-
-  def mute
-    layers.map { |layer| layer.mute { yield } }.last
-  end
-
-  def read(name, options = nil)
-    warm_layer = nil
-    cold_layers = []
-    value = nil
-
-    layers.each do |layer|
-      hit = if layer.respond_to?(:with_local_cache)
-        layer.with_local_cache do
-          value = layer.read(name, options)
-          !value.nil? || layer.exist?(name, options)
-        end
-      else
-        value = layer.read(name, options)
-        !value.nil? || layer.exist?(name, options)
-      end
-
-      if hit
-        warm_layer = layer
-        break
-      else
-        cold_layers << layer
-      end
-    end
-
-    yield(value, warm_layer, cold_layers) if block_given?
-    value
-  end
-
-  def read_multi(*names)
-    keys = names.dup
-    keys.extract_options!
-
-    warm_layer = nil
-    cold_layers = []
-    value = {}
-
-    layers.each do |layer|
-      hash = layer.read_multi(*names)
-      value.merge!(hash) if hash.size > value.size
-      warm_layer = layer if hash.size == keys.size
-      break if warm_layer
-      cold_layers << layer
-    end
-
-    yield(value, warm_layer, cold_layers) if block_given?
-    value
-  end
-
-  def silence!
-    layers.map { |layer| layer.silence! }.last
   end
 
   def write(name, value, options = nil)
@@ -165,9 +97,79 @@ class CompositeCacheStore
     layers.map { |layer| layer.write_multi(hash, options) }.last
   end
 
+  def delete(...)
+    layers.map { |layer| layer.delete(...) }.last
+  end
+
+  def delete_multi(...)
+    layers.map { |layer| layer.delete_multi(...) }.last
+  end
+
+  def delete_matched(...)
+    layers.map { |layer| layer.delete_matched(...) }.last
+  end
+
+  def increment(name, amount = 1, options = nil)
+    provisional_layers.each { |layer| layer.delete(name, options) }
+    layers.last.increment(name, amount, options)
+  end
+
+  def decrement(name, amount = 1, options = nil)
+    provisional_layers.each { |layer| layer.delete(name, options) }
+    layers.last.decrement(name, amount, options)
+  end
+
+  def cleanup(...)
+    layers.map { |layer| layer.cleanup(...) }.last
+  end
+
+  def clear(...)
+    layers.map { |layer| layer.clear(...) }.last
+  end
+
+  def exist?(...)
+    layers.any? { |layer| layer.exist?(...) }
+  end
+
+  def mute
+    layers.map { |layer| layer.mute { yield } }.last
+  end
+
+  def silence!
+    layers.map { |layer| layer.silence! }.last
+  end
+
   private
 
   def provisional_layers
     layers.take layers.size - 1
+  end
+
+  def layer_read?(layer, name, options)
+    if layer.respond_to?(:with_local_cache)
+      layer.with_local_cache do
+        value = layer.read(name, options)
+        yield value
+        value || layer.exist?(name, options)
+      end
+    else
+      value = layer.read(name, options)
+      yield value
+      value || layer.exist?(name, options)
+    end
+  end
+
+  def layer_read_multi?(layer, *names)
+    keys = names.dup
+    keys.extract_options!
+
+    value = if layer.respond_to?(:with_local_cache)
+      layer.with_local_cache { layer.read_multi(*names) }
+    else
+      layer.read_multi(*names)
+    end
+
+    yield value
+    value.size == keys.size
   end
 end
