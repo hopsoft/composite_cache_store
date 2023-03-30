@@ -4,146 +4,172 @@ require "active_support/all"
 require_relative "composite_cache_store/version"
 
 class CompositeCacheStore
-  DEFAULT_LAYER_1_OPTIONS = {
-    expires_in: 5.minutes,
-    size: 16.megabytes
-  }
-
-  DEFAULT_LAYER_2_OPTIONS = {
-    expires_in: 1.day,
-    size: 32.megabytes
-  }
-
-  attr_reader :layers
+  attr_reader :options, :layers
+  attr_accessor :logger
 
   # Returns a new CompositeCacheStore instance
-  def initialize(*layers)
-    if layers.blank?
-      layers << ActiveSupport::Cache::MemoryStore.new(DEFAULT_LAYER_1_OPTIONS)
-      layers << ActiveSupport::Cache::MemoryStore.new(DEFAULT_LAYER_2_OPTIONS)
+  def initialize(options = {})
+    options = options.dup || {}
+    layers = options.delete(:layers) || []
+
+    raise ArgumentError.new("A layered cache requires more than 1 layer!") unless layers.size > 1
+
+    unless layers.all? { |layer| layer.is_a? ActiveSupport::Cache::Store }
+      raise ArgumentError.new("All layers must be instances of ActiveSupport::Cache::Store!")
     end
 
-    message = "All layers must be instances of ActiveSupport::Cache::Store"
-    layers.each do |layer|
-      raise ArgumentError.new(message) unless layer.is_a?(ActiveSupport::Cache::Store)
+    @layers = layers.freeze
+    @logger = options[:logger]
+    @options = options
+  end
+
+  def read(name, options = nil)
+    value = nil
+    warm_layer = layers.find { |layer| layer_read?(layer, name, options) { |val| value = val } }
+    yield(value, warm_layer) if block_given?
+    value
+  end
+
+  def read_multi(*names)
+    value = {}
+    warm_layer = layers.find { |layer| layer_read_multi?(layer, *names) { |val| value.merge!(val) } }
+    yield(value, warm_layer) if block_given?
+    value
+  end
+
+  def fetch(name, options = nil, &block)
+    options ||= {}
+
+    if options[:force]
+      raise ArgumentError, "Missing block: Calling `Cache#fetch` with `force: true` requires a block." unless block
+      value = block&.call(name)
+      layers.each { |layer| layer.write(name, value, options) }
+      return value
     end
 
-    layers.freeze
-    @layers = layers
-  end
+    read(name, options) do |value, warm_layer|
+      value ||= block&.call(name) unless warm_layer
 
-  def cleanup(...)
-    layers.each { |store| store.cleanup(...) }
-  end
-
-  def clear(...)
-    layers.each { |store| store.clear(...) }
-  end
-
-  def decrement(...)
-    layers.each { |store| store.decrement(...) }
-  end
-
-  def delete(...)
-    layers.each { |store| store.delete(...) }
-  end
-
-  def delete_matched(...)
-    layers.each { |store| store.delete_matched(...) }
-  end
-
-  def delete_multi(...)
-    layers.each { |store| store.delete_multi(...) }
-  end
-
-  def exist?(...)
-    layers.each do |store|
-      return true if store.exist?(...)
-    end
-    false
-  end
-
-  def fetch(*args, &block)
-    f = ->(store) do
-      return store.fetch(*args, &block) if store == layers.last
-      store.fetch(*args) { f.call(layers[layers.index(store) + 1]) }
-    end
-    f.call(layers.first)
-  end
-
-  def fetch_multi(*args, &block)
-    fm = ->(store) do
-      return store.fetch_multi(*args, &block) if store == layers.last
-      store.fetch_multi(*args) { fm.call(layers[layers.index(store) + 1]) }
-    end
-    fm.call(layers.first)
-  end
-
-  def increment(...)
-    layers.each { |store| store.increment(...) }
-  end
-
-  def mute
-    m = ->(store) do
-      return store.mute { yield } if store == layers.last
-      store.mute { m.call(layers[layers.index(store) + 1]) }
-    end
-    m.call(layers.first)
-  end
-
-  def read(*args)
-    r = ->(store) do
-      return store.read(*args) if store == layers.last
-      store.fetch(*args) { r.call(layers[layers.index(store) + 1]) }
-    end
-    r.call(layers.first)
-  end
-
-  def read_multi(...)
-    missed_layers = []
-    layers.each do |store|
-      hash = store.read_multi(...)
-      if hash.present?
-        missed_layers.each { |s| s.write_multi(hash) }
-        return hash
+      layers.each do |layer|
+        break if layer == warm_layer
+        layer.write(name, value, options) unless value.nil? && options[:skip_nil]
       end
-      missed_layers << store
+
+      return value
     end
-    {}
   end
 
-  def silence!
-    layers.each { |store| store.silence! }
+  def fetch_multi(*names, &block)
+    raise ArgumentError, "Missing block: `Cache#fetch_multi` requires a block." unless block
+
+    keys = names.dup
+    options = keys.extract_options!
+
+    if options[:force]
+      value = keys.each_with_object({}) { |key, memo| memo[key] = block&.call(key) }
+      layers.each { |layer| layer.write_multi(value, options) }
+      return value
+    end
+
+    read_multi(*names) do |value, warm_layer|
+      unless warm_layer
+        missing_keys = keys - value.keys
+        missing_keys.each { |key| value[key] = block&.call(key) }
+      end
+
+      value.compact! if options[:skip_nil]
+
+      layers.each do |layer|
+        break if layer == warm_layer
+        layer.write_multi(value, options)
+      end
+
+      # return ordered hash value
+      return keys.each_with_object({}) { |key, memo| memo[key] = value[key] }
+    end
   end
 
   def write(name, value, options = nil)
-    layers.each do |store|
-      store.write name, value, permitted_options(store, options)
-    end
+    layers.map { |layer| layer.write(name, value, options) }.last
   end
 
   def write_multi(hash, options = nil)
-    layers.each do |store|
-      store.write_multi hash, permitted_options(store, options)
-    end
+    layers.map { |layer| layer.write_multi(hash, options) }.last
+  end
+
+  def delete(...)
+    layers.map { |layer| layer.delete(...) }.last
+  end
+
+  def delete_multi(...)
+    layers.map { |layer| layer.delete_multi(...) }.last
+  end
+
+  def delete_matched(...)
+    layers.map { |layer| layer.delete_matched(...) }.last
+  end
+
+  def increment(name, amount = 1, options = nil)
+    provisional_layers.each { |layer| layer.delete(name, options) }
+    layers.last.increment(name, amount, options)
+  end
+
+  def decrement(name, amount = 1, options = nil)
+    provisional_layers.each { |layer| layer.delete(name, options) }
+    layers.last.decrement(name, amount, options)
+  end
+
+  def cleanup(...)
+    layers.map { |layer| layer.cleanup(...) }.last
+  end
+
+  def clear(...)
+    layers.map { |layer| layer.clear(...) }.last
+  end
+
+  def exist?(...)
+    layers.any? { |layer| layer.exist?(...) }
+  end
+
+  def mute
+    layers.map { |layer| layer.mute { yield } }.last
+  end
+
+  def silence!
+    layers.map { |layer| layer.silence! }.last
   end
 
   private
 
-  def permitted_options(store, options = {})
-    return options if options.blank?
-    return options if keep_expiration?(store, options)
-    options.except(:expires_in, :expires_at)
+  def provisional_layers
+    layers.take layers.size - 1
   end
 
-  def keep_expiration?(store, options = {})
-    return true if store == layers.last
-    return true unless store.options[:expires_in]
+  def layer_read?(layer, name, options)
+    if layer.respond_to?(:with_local_cache)
+      layer.with_local_cache do
+        value = layer.read(name, options)
+        yield value
+        value || layer.exist?(name, options)
+      end
+    else
+      value = layer.read(name, options)
+      yield value
+      value || layer.exist?(name, options)
+    end
+  end
 
-    expires_in = options[:expires_in]
-    expires_in ||= Time.current - options[:expires_at] if options[:expires_at]
-    return false unless expires_in
+  def layer_read_multi?(layer, *names)
+    keys = names.dup
+    keys.extract_options!
 
-    expires_in < store.options[:expires_in]
+    value = if layer.respond_to?(:with_local_cache)
+      layer.with_local_cache { layer.read_multi(*names) }
+    else
+      layer.read_multi(*names)
+    end
+
+    yield value
+    value.size == keys.size
   end
 end
